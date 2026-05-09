@@ -3,8 +3,11 @@ package natsbus
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/nats-io/nats.go"
 )
 
 // ErrReadyTimeout is returned by ReadyWaiter.Wait when the agent does not
@@ -13,52 +16,69 @@ import (
 var ErrReadyTimeout = errors.New("agent ready timeout")
 
 // ReadyWaiter blocks the caller until an agent container is ready to
-// receive input on its NATS subjects. It is constructed before the
-// container is started and resolves once the readiness condition is met.
+// receive input on its NATS subjects. It subscribes to TopicAgentReady
+// before the container is started and resolves when the agent-runner
+// publishes its ready marker — which it does AFTER flushing its input/
+// control/route subscriptions to the broker.
 //
-// Callers MUST Close the waiter when done (defer is fine).
+// This avoids the cross-agent race in the previous NumClients()-based
+// implementation, where the first concurrent agent's connection would
+// satisfy every concurrent waiter regardless of which agent it was.
+//
+// PrepareReadyWaiter must be called BEFORE the container is started so
+// the subscription is registered with the broker first; otherwise the
+// agent could publish ready into the void and the waiter would block
+// until timeout. Callers MUST Close the waiter when done (defer is fine).
 type ReadyWaiter struct {
-	bus           *Bus
-	agentID       string
-	clientsBefore int
+	sub     *nats.Subscription
+	ch      chan struct{}
+	agentID string
 }
 
-// PrepareReadyWaiter snapshots the bus state needed to detect when the
-// agent identified by agentID becomes ready. Must be called BEFORE the
-// container is started.
-func PrepareReadyWaiter(bus *Bus, _ *Client, agentID string) (*ReadyWaiter, error) {
-	return &ReadyWaiter{
-		bus:           bus,
-		agentID:       agentID,
-		clientsBefore: bus.NumClients(),
-	}, nil
+// PrepareReadyWaiter subscribes to the agent's ready topic and returns a
+// waiter that resolves on the first ready signal.
+func PrepareReadyWaiter(client *Client, agentID string) (*ReadyWaiter, error) {
+	ch := make(chan struct{}, 1)
+	sub, err := client.Subscribe(TopicAgentReady(agentID), func(*nats.Msg) {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("subscribe to ready: %w", err)
+	}
+	// Flush so the subscription is registered with the broker before the
+	// caller starts the container. Without this, an agent that publishes
+	// ready very quickly could race the subscription registration.
+	if err := client.Flush(); err != nil {
+		_ = sub.Unsubscribe()
+		return nil, fmt.Errorf("flush ready subscription: %w", err)
+	}
+	return &ReadyWaiter{sub: sub, ch: ch, agentID: agentID}, nil
 }
 
 // Wait blocks until the agent is ready, the timeout elapses, or ctx is
 // cancelled. Returns nil on success, ErrReadyTimeout on timeout, or
 // ctx.Err() on cancellation.
 func (w *ReadyWaiter) Wait(ctx context.Context, timeout time.Duration) error {
-	deadline := time.After(timeout)
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-deadline:
-			slog.Warn("agent ready timeout", "agent", w.agentID)
-			return ErrReadyTimeout
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if w.bus.NumClients() > w.clientsBefore {
-				// Grace period for the new client to register subscriptions.
-				time.Sleep(500 * time.Millisecond)
-				slog.Info("agent container ready", "agent", w.agentID)
-				return nil
-			}
-		}
+	select {
+	case <-w.ch:
+		slog.Info("agent container ready", "agent", w.agentID)
+		return nil
+	case <-time.After(timeout):
+		slog.Warn("agent ready timeout", "agent", w.agentID)
+		return ErrReadyTimeout
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
-// Close releases resources held by the waiter. Safe to call multiple times.
-func (w *ReadyWaiter) Close() {}
+// Close unsubscribes the underlying ready subscription. Safe to call
+// multiple times.
+func (w *ReadyWaiter) Close() {
+	if w.sub != nil {
+		_ = w.sub.Unsubscribe()
+		w.sub = nil
+	}
+}

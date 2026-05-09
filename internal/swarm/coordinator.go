@@ -308,7 +308,7 @@ func (c *Coordinator) runSwarmAgent(ctx context.Context, swarmID string, agent S
 		opts.Env["SWARM_CHAT_TOPIC"] = chatTopic
 	}
 
-	waiter, err := natsbus.PrepareReadyWaiter(c.bus, c.client, agentID)
+	waiter, err := natsbus.PrepareReadyWaiter(c.client, agentID)
 	if err != nil {
 		result.Status = "error"
 		result.Error = fmt.Sprintf("prepare ready waiter: %v", err)

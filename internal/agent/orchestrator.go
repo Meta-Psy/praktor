@@ -201,7 +201,7 @@ func (o *Orchestrator) executeMessage(ctx context.Context, agentID string, msg Q
 		slog.Info("starting agent", "agent", agentID)
 
 		var waiter *natsbus.ReadyWaiter
-		waiter, err = natsbus.PrepareReadyWaiter(o.bus, o.client, agentID)
+		waiter, err = natsbus.PrepareReadyWaiter(o.client, agentID)
 		if err != nil {
 			return fmt.Errorf("prepare ready waiter: %w", err)
 		}
@@ -288,7 +288,7 @@ func (o *Orchestrator) RouteQuery(ctx context.Context, agentID string, message s
 		}
 
 		var waiter *natsbus.ReadyWaiter
-		waiter, err = natsbus.PrepareReadyWaiter(o.bus, o.client, agentID)
+		waiter, err = natsbus.PrepareReadyWaiter(o.client, agentID)
 		if err != nil {
 			return "", fmt.Errorf("prepare ready waiter: %w", err)
 		}
@@ -833,7 +833,7 @@ func (o *Orchestrator) EnsureAgent(ctx context.Context, agentID string) error {
 	slog.Info("starting agent", "agent", agentID)
 
 	var waiter *natsbus.ReadyWaiter
-	waiter, err = natsbus.PrepareReadyWaiter(o.bus, o.client, agentID)
+	waiter, err = natsbus.PrepareReadyWaiter(o.client, agentID)
 	if err != nil {
 		return fmt.Errorf("prepare ready waiter: %w", err)
 	}

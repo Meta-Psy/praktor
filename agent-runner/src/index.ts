@@ -470,13 +470,17 @@ async function executeTask(data: Record<string, unknown>): Promise<void> {
   const bgKey = msgId ?? `__task-${++taskKeyCounter}`;
   console.log(`[task] executing parallel task: ${text.substring(0, 100)}...`);
 
+  // Hoisted to function scope so the outer catch can read terminalReason —
+  // the previous block-scoped declaration crashed the catch with a
+  // ReferenceError, swallowing the failure path silently.
+  let fullResponse = "";
+  let terminalReason: string | undefined;
+  let hasStreamedOutput = false;
+
   try {
     const opts = buildQueryOptions(text);
     const result = query(opts);
 
-    let fullResponse = "";
-    let terminalReason: string | undefined;
-    let hasStreamedOutput = false;
     const iter = result[Symbol.asyncIterator]();
     if (msgId) activeQueries.set(msgId, iter);
 
@@ -517,9 +521,14 @@ async function executeTask(data: Record<string, unknown>): Promise<void> {
       if (!fullResponse && hasStreamedOutput) {
         fullResponse = "[response was streamed]";
       }
-      if (fullResponse || terminalReason) {
-        await bridge.publishResult(fullResponse, msgId, terminalReason);
+      // Tasks are unattended — if Claude returned nothing useful, surface
+      // a marker so the user knows the run happened. Without this, a
+      // success result with empty content silently disappears.
+      if (!fullResponse) {
+        fullResponse = "⚠️ Task completed with no output.";
+        console.warn(`[task] completed with no output (msg_id=${msgId}, terminal=${terminalReason ?? "none"})`);
       }
+      await bridge.publishResult(fullResponse, msgId, terminalReason);
     }
     if (terminalReason && terminalReason !== "completed") {
       console.log(`[task] completed (terminal_reason: ${terminalReason})`);
@@ -581,6 +590,13 @@ async function handleMessage(data: Record<string, unknown>): Promise<void> {
   backgroundTasksByQuery.delete(bgKey);
   console.log(`[agent] processing message for agent ${AGENT_ID}: ${text.substring(0, 100)}...`);
 
+  // Hoisted to function scope so the outer catch can read terminalReason —
+  // the previous block-scoped declaration crashed the catch with a
+  // ReferenceError, swallowing the failure path silently.
+  let fullResponse = "";
+  let terminalReason: string | undefined;
+  let hasStreamedOutput = false;
+
   try {
     // Prepend swarm chat context if in collaborative mode
     let augmentedText = text;
@@ -614,9 +630,6 @@ async function handleMessage(data: Record<string, unknown>): Promise<void> {
     }
 
     // Process streaming result
-    let fullResponse = "";
-    let terminalReason: string | undefined;
-    let hasStreamedOutput = false;
     const iter = result[Symbol.asyncIterator]();
     currentQueryIter = iter;
     try {
@@ -663,6 +676,10 @@ async function handleMessage(data: Record<string, unknown>): Promise<void> {
       }
       if (fullResponse || terminalReason) {
         await bridge.publishResult(fullResponse, msgId, terminalReason);
+      } else {
+        // Interactive path: keep silence (user might have just sent "thanks"),
+        // but log so silent failures are visible in container logs.
+        console.warn(`[agent] completed with no output (msg_id=${msgId})`);
       }
     }
 

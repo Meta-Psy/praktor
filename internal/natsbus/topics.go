@@ -20,6 +20,14 @@ func TopicAgentRoute(agentID string) string {
 	return fmt.Sprintf("agent.%s.route", agentID)
 }
 
+// TopicAgentReady is published by the agent-runner once its NATS
+// subscriptions are registered with the broker. The host subscribes to
+// this subject as a per-agent readiness signal (replaces the global
+// NumClients() polling that races on simultaneous starts).
+func TopicAgentReady(agentID string) string {
+	return fmt.Sprintf("agent.%s.ready", agentID)
+}
+
 func TopicIPC(agentID string) string {
 	return fmt.Sprintf("host.ipc.%s", agentID)
 }
