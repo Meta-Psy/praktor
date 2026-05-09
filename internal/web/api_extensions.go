@@ -41,7 +41,7 @@ func (s *Server) getAgentExtensions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	resp, _ := json.Marshal(combined)
-	w.Write(resp)
+	_, _ = w.Write(resp)
 }
 
 func (s *Server) updateAgentExtensions(w http.ResponseWriter, r *http.Request) {

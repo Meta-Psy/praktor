@@ -57,7 +57,7 @@ func (s *Store) ListSecrets() ([]Secret, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list secrets: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var secrets []Secret
 	for rows.Next() {
@@ -88,7 +88,7 @@ func (s *Store) GetAgentSecrets(agentID string) ([]Secret, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get agent secrets: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var secrets []Secret
 	for rows.Next() {
@@ -156,7 +156,7 @@ func (s *Store) SetAgentSecrets(agentID string, secretIDs []string) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.Exec(`DELETE FROM agent_secrets WHERE agent_id = ?`, agentID); err != nil {
 		return fmt.Errorf("clear agent secrets: %w", err)
@@ -177,7 +177,7 @@ func (s *Store) SetSecretAgents(secretID string, agentIDs []string) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.Exec(`DELETE FROM agent_secrets WHERE secret_id = ?`, secretID); err != nil {
 		return fmt.Errorf("clear secret agents: %w", err)
@@ -198,7 +198,7 @@ func (s *Store) GetSecretAgentIDs(secretID string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get secret agent ids: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []string
 	for rows.Next() {

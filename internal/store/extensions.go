@@ -18,7 +18,7 @@ func (s *Store) GetAgentExtensions(agentID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("query mcp servers: %w", err)
 	}
-	defer mcpRows.Close()
+	defer func() { _ = mcpRows.Close() }()
 
 	for mcpRows.Next() {
 		var name, cfgJSON string
@@ -43,7 +43,7 @@ func (s *Store) GetAgentExtensions(agentID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("query marketplaces: %w", err)
 	}
-	defer mpRows.Close()
+	defer func() { _ = mpRows.Close() }()
 
 	for mpRows.Next() {
 		var m extensions.MarketplaceConfig
@@ -61,7 +61,7 @@ func (s *Store) GetAgentExtensions(agentID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("query plugins: %w", err)
 	}
-	defer plRows.Close()
+	defer func() { _ = plRows.Close() }()
 
 	for plRows.Next() {
 		var p extensions.PluginConfig
@@ -85,7 +85,7 @@ func (s *Store) GetAgentExtensions(agentID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("query skills: %w", err)
 	}
-	defer skRows.Close()
+	defer func() { _ = skRows.Close() }()
 
 	for skRows.Next() {
 		var name, desc, content, reqJSON, filesJSON string
@@ -131,7 +131,7 @@ func (s *Store) SetAgentExtensions(agentID, extensionsJSON string) error {
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Delete existing rows
 	for _, table := range []string{"agent_mcp_servers", "agent_marketplaces", "agent_plugins", "agent_skills"} {

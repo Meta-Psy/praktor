@@ -262,4 +262,3 @@ func collapseWhitespace(s string) string {
 func isSpace(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
-

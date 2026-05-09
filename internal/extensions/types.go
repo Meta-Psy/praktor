@@ -36,8 +36,8 @@ type MarketplaceConfig struct {
 // PluginConfig defines a Claude Code plugin to install.
 type PluginConfig struct {
 	Name     string   `json:"name"`               // "plugin-name@marketplace"
-	Disabled bool     `json:"disabled,omitempty"`  // disable without uninstalling
-	Requires []string `json:"requires,omitempty"`  // nix packages needed
+	Disabled bool     `json:"disabled,omitempty"` // disable without uninstalling
+	Requires []string `json:"requires,omitempty"` // nix packages needed
 }
 
 // SkillConfig defines a Claude Code skill (SKILL.md).

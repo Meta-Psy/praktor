@@ -6,22 +6,25 @@ import (
 	"unicode/utf8"
 )
 
+// telegramMaxMessageLen is the Telegram message size limit.
+const telegramMaxMessageLen = 4096
+
 // chunkMessage splits a message into chunks that fit within Telegram's message size limit.
-func chunkMessage(text string, maxLen int) []string {
-	if len(text) <= maxLen {
+func chunkMessage(text string) []string {
+	if len(text) <= telegramMaxMessageLen {
 		return []string{text}
 	}
 
 	var chunks []string
 	for len(text) > 0 {
-		if len(text) <= maxLen {
+		if len(text) <= telegramMaxMessageLen {
 			chunks = append(chunks, text)
 			break
 		}
 
 		// Try to split at a newline
-		cutAt := maxLen
-		if idx := strings.LastIndex(text[:maxLen], "\n"); idx > maxLen/2 {
+		cutAt := telegramMaxMessageLen
+		if idx := strings.LastIndex(text[:telegramMaxMessageLen], "\n"); idx > telegramMaxMessageLen/2 {
 			cutAt = idx + 1
 		}
 
@@ -69,13 +72,13 @@ func escapeMarkdownV2(text string) string {
 var (
 	reBold       = regexp.MustCompile(`\*\*(.+?)\*\*`)
 	reBoldSingle = regexp.MustCompile(`(?:^|[^*\\])\*([^*\n]+?)\*(?:[^*]|$)`)
-	reHeader   = regexp.MustCompile(`^#{1,6}\s+(.+)$`)
-	reHR       = regexp.MustCompile(`^-{3,}$`)
-	reBullet   = regexp.MustCompile(`^(\s*)[-*]\s+`)
-	reItalic   = regexp.MustCompile(`(?:^|[^\\])_(.+?)_`)
-	reImageEmb = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	reLink     = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	reInline   = regexp.MustCompile("`[^`]+`")
+	reHeader     = regexp.MustCompile(`^#{1,6}\s+(.+)$`)
+	reHR         = regexp.MustCompile(`^-{3,}$`)
+	reBullet     = regexp.MustCompile(`^(\s*)[-*]\s+`)
+	reItalic     = regexp.MustCompile(`(?:^|[^\\])_(.+?)_`)
+	reImageEmb   = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	reLink       = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	reInline     = regexp.MustCompile("`[^`]+`")
 )
 
 // toTelegramMarkdown converts standard Markdown to Telegram MarkdownV2.

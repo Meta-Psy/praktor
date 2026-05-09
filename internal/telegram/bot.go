@@ -75,19 +75,19 @@ func NewBot(cfg config.TelegramConfig, orch *agent.Orchestrator, rtr *router.Rou
 	}
 
 	b := &Bot{
-		bot:        bot,
-		orch:       orch,
-		router:     rtr,
-		store:      s,
-		cfg:        cfg,
-		swarmCoord: sc,
-		registry:   reg,
-		bus:        bus,
-		chatAgent:  make(map[int64]string),
-		msgAgent:   make(map[int]string),
-		swarmChat:  make(map[string]int64),
-		speech:     speechClient,
-		speechCfg:  speechCfg,
+		bot:         bot,
+		orch:        orch,
+		router:      rtr,
+		store:       s,
+		cfg:         cfg,
+		swarmCoord:  sc,
+		registry:    reg,
+		bus:         bus,
+		chatAgent:   make(map[int64]string),
+		msgAgent:    make(map[int]string),
+		swarmChat:   make(map[string]int64),
+		speech:      speechClient,
+		speechCfg:   speechCfg,
 		voiceChat:   make(map[int64]bool),
 		mediaGroups: make(map[string]*mediaGroupBuffer),
 	}
@@ -281,7 +281,7 @@ func (b *Bot) Start(ctx context.Context) error {
 		return nil
 	})
 
-	go handler.Start()
+	go func() { _ = handler.Start() }()
 
 	<-ctx.Done()
 	_ = handler.Stop()
@@ -403,7 +403,7 @@ func (b *Bot) processMediaGroup(ctx context.Context, msgs []telego.Message) {
 	b.chatAgent[chatID] = agentID
 	b.chatAgentMu.Unlock()
 
-	_ = b.sendChatAction(ctx, chatID, "typing")
+	_ = b.sendChatAction(ctx, chatID)
 
 	// Download and save all attachments.
 	ag, err := b.registry.Get(agentID)
@@ -523,7 +523,7 @@ func (b *Bot) processMessage(ctx context.Context, msg telego.Message) {
 	b.chatAgentMu.Unlock()
 
 	// Send thinking indicator
-	_ = b.sendChatAction(ctx, chatID, "typing")
+	_ = b.sendChatAction(ctx, chatID)
 
 	// Handle file attachment: download and write to agent workspace
 	if attachment != nil {
@@ -695,7 +695,7 @@ func (b *Bot) SendMessage(ctx context.Context, chatID int64, text string) error 
 // sendMessage sends a (possibly chunked) message and returns the IDs of the sent Telegram messages.
 func (b *Bot) sendMessage(ctx context.Context, chatID int64, text string) ([]int, error) {
 	text = toTelegramMarkdown(text)
-	chunks := chunkMessage(text, 4096)
+	chunks := chunkMessage(text)
 	var ids []int
 	for _, chunk := range chunks {
 		msg := tu.Message(tu.ID(chatID), chunk)
@@ -802,8 +802,8 @@ func (b *Bot) transcribeVoice(ctx context.Context, data []byte, filename string)
 	return text
 }
 
-func (b *Bot) sendChatAction(ctx context.Context, chatID int64, action string) error {
-	return b.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), action))
+func (b *Bot) sendChatAction(ctx context.Context, chatID int64) error {
+	return b.bot.SendChatAction(ctx, tu.ChatAction(tu.ID(chatID), "typing"))
 }
 
 // handleSwarmCommand parses the swarm syntax and launches a swarm.
@@ -838,7 +838,7 @@ func (b *Bot) handleSwarmCommand(ctx context.Context, chatID int64, message stri
 	}
 
 	req := swarm.SwarmRequest{
-		Name:      fmt.Sprintf("Telegram Swarm"),
+		Name:      "Telegram Swarm",
 		LeadAgent: leadAgent,
 		Agents:    agents,
 		Synapses:  synapses,
@@ -978,7 +978,7 @@ func (b *Bot) cmdStart(ctx context.Context, msg telego.Message, payload string) 
 	b.chatAgent[chatID] = agentID
 	b.chatAgentMu.Unlock()
 
-	_ = b.sendChatAction(ctx, chatID, "typing")
+	_ = b.sendChatAction(ctx, chatID)
 
 	meta := map[string]string{
 		"sender":  fmt.Sprintf("user:%d", msg.From.ID),
@@ -1067,18 +1067,18 @@ func (b *Bot) cmdAgents(ctx context.Context, chatID int64) {
 
 		model := b.registry.ResolveModel(a.ID)
 
-		sb.WriteString(fmt.Sprintf("*%s*", a.ID))
+		fmt.Fprintf(&sb, "*%s*", a.ID)
 		if a.Description != "" {
-			sb.WriteString(fmt.Sprintf(" — %s", a.Description))
+			fmt.Fprintf(&sb, " — %s", a.Description)
 		}
-		sb.WriteString(fmt.Sprintf("\n  Status: `%s` | Model: `%s`", status, model))
+		fmt.Fprintf(&sb, "\n  Status: `%s` | Model: `%s`", status, model)
 
 		if def, ok := b.registry.GetDefinition(a.ID); ok && def.NixEnabled {
 			sb.WriteString(" | Nix: `enabled`")
 		}
 
 		if stats, ok := msgStats[a.ID]; ok {
-			sb.WriteString(fmt.Sprintf(" | Messages: %d", stats.MessageCount))
+			fmt.Fprintf(&sb, " | Messages: %d", stats.MessageCount)
 		}
 		sb.WriteString("\n\n")
 	}
@@ -1154,7 +1154,7 @@ func (b *Bot) cmdPkg(ctx context.Context, chatID int64, payload string) {
 		return
 	}
 
-	_ = b.sendChatAction(ctx, chatID, "typing")
+	_ = b.sendChatAction(ctx, chatID)
 
 	output, err := b.orch.ExecInAgent(ctx, agentID, cmd)
 	if err != nil && output == "" {
@@ -1309,15 +1309,15 @@ func (b *Bot) handleSwarmEvent(msg *nats.Msg) {
 	} else {
 		// Send all results if no lead result
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("*Swarm Complete* (%s):\n\n", run.Name))
+		fmt.Fprintf(&sb, "*Swarm Complete* (%s):\n\n", run.Name)
 		for _, r := range results {
-			sb.WriteString(fmt.Sprintf("*%s* [%s]", r.Role, r.Status))
+			fmt.Fprintf(&sb, "*%s* [%s]", r.Role, r.Status)
 			if r.Output != "" {
 				output := r.Output
 				if len(output) > 500 {
 					output = output[:500] + "..."
 				}
-				sb.WriteString(fmt.Sprintf(":\n%s", output))
+				fmt.Fprintf(&sb, ":\n%s", output)
 			}
 			sb.WriteString("\n\n")
 		}

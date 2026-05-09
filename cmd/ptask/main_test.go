@@ -98,12 +98,12 @@ func TestSendIPCCreateTask(t *testing.T) {
 			t.Errorf("expected name 'my task', got %v", req.Payload["name"])
 		}
 		resp, _ := json.Marshal(ipcResponse{OK: true, ID: "task-123"})
-		msg.Respond(resp)
+		_ = msg.Respond(resp)
 	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	conn.Flush()
+	_ = conn.Flush()
 
 	resp, err := sendIPC(url, "test-group", "create_task", map[string]any{
 		"name":     "my task",
@@ -130,7 +130,7 @@ func TestSendIPCListTasks(t *testing.T) {
 
 	_, err = conn.Subscribe("host.ipc.test-group", func(msg *nats.Msg) {
 		var req ipcRequest
-		json.Unmarshal(msg.Data, &req)
+		_ = json.Unmarshal(msg.Data, &req)
 		if req.Type != "list_tasks" {
 			t.Errorf("expected type list_tasks, got %s", req.Type)
 		}
@@ -141,12 +141,12 @@ func TestSendIPCListTasks(t *testing.T) {
 				{ID: "t2", Name: "task two", Schedule: "0 9 * * *", Status: "active"},
 			},
 		})
-		msg.Respond(resp)
+		_ = msg.Respond(resp)
 	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	conn.Flush()
+	_ = conn.Flush()
 
 	resp, err := sendIPC(url, "test-group", "list_tasks", map[string]any{})
 	if err != nil {
@@ -172,7 +172,7 @@ func TestSendIPCDeleteTask(t *testing.T) {
 
 	_, err = conn.Subscribe("host.ipc.test-group", func(msg *nats.Msg) {
 		var req ipcRequest
-		json.Unmarshal(msg.Data, &req)
+		_ = json.Unmarshal(msg.Data, &req)
 		if req.Type != "delete_task" {
 			t.Errorf("expected type delete_task, got %s", req.Type)
 		}
@@ -180,12 +180,12 @@ func TestSendIPCDeleteTask(t *testing.T) {
 			t.Errorf("expected id task-123, got %v", req.Payload["id"])
 		}
 		resp, _ := json.Marshal(ipcResponse{OK: true})
-		msg.Respond(resp)
+		_ = msg.Respond(resp)
 	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	conn.Flush()
+	_ = conn.Flush()
 
 	resp, err := sendIPC(url, "test-group", "delete_task", map[string]any{"id": "task-123"})
 	if err != nil {
@@ -208,12 +208,12 @@ func TestSendIPCErrorResponse(t *testing.T) {
 
 	_, err = conn.Subscribe("host.ipc.test-group", func(msg *nats.Msg) {
 		resp, _ := json.Marshal(ipcResponse{Error: "task not found"})
-		msg.Respond(resp)
+		_ = msg.Respond(resp)
 	})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	conn.Flush()
+	_ = conn.Flush()
 
 	resp, err := sendIPC(url, "test-group", "delete_task", map[string]any{"id": "nonexistent"})
 	if err != nil {

@@ -73,7 +73,7 @@ func (s *Store) ListSwarmRuns() ([]SwarmRun, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list swarm runs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var runs []SwarmRun
 	for rows.Next() {

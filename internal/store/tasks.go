@@ -151,7 +151,7 @@ func (s *Store) ListTasks() ([]ScheduledTask, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tasks []ScheduledTask
 	for rows.Next() {
@@ -172,7 +172,7 @@ func (s *Store) ListTasksForAgent(agentID string) ([]ScheduledTask, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list tasks for agent: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tasks []ScheduledTask
 	for rows.Next() {
@@ -197,7 +197,7 @@ func (s *Store) GetDueTasks(now time.Time) ([]ScheduledTask, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get due tasks: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	nowUTC := now.UTC()
 	var tasks []ScheduledTask

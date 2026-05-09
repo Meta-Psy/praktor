@@ -94,12 +94,12 @@ func (c *Coordinator) RunSwarm(ctx context.Context, req SwarmRequest) (*store.Sw
 	})
 
 	// Use a background context so the swarm outlives the HTTP request.
-	go c.executeSwarm(context.Background(), req, run)
+	go c.executeSwarm(context.Background(), req)
 
 	return run, nil
 }
 
-func (c *Coordinator) executeSwarm(ctx context.Context, req SwarmRequest, run *store.SwarmRun) {
+func (c *Coordinator) executeSwarm(ctx context.Context, req SwarmRequest) {
 	slog.Info("starting swarm", "id", req.ID, "agents", len(req.Agents), "synapses", len(req.Synapses))
 
 	plan, err := BuildPlan(req.Agents, req.Synapses, req.LeadAgent)
@@ -320,7 +320,7 @@ func (c *Coordinator) runSwarmAgent(ctx context.Context, swarmID string, agent S
 		result.Error = err.Error()
 		return result
 	}
-	defer c.containers.StopAgent(ctx, agentID)
+	defer func() { _ = c.containers.StopAgent(ctx, agentID) }()
 
 	// Register swarm membership
 	if chatTopic != "" {
@@ -363,7 +363,7 @@ func (c *Coordinator) runSwarmAgent(ctx context.Context, swarmID string, agent S
 		result.Error = "failed to subscribe for results"
 		return result
 	}
-	defer sub.Unsubscribe()
+	defer func() { _ = sub.Unsubscribe() }()
 
 	// Send prompt
 	payload := map[string]string{
@@ -505,7 +505,6 @@ func (c *Coordinator) PublishSwarmChat(topic, from, content string) error {
 	data, _ := json.Marshal(msg)
 	return c.client.Publish(topic, data)
 }
-
 
 func truncate(s string, max int) string {
 	if len(s) <= max {

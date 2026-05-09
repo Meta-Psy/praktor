@@ -10,16 +10,16 @@ import (
 )
 
 type Config struct {
-	Telegram   TelegramConfig                `yaml:"telegram"`
-	Defaults   DefaultsConfig                `yaml:"defaults"`
-	Agents     map[string]AgentDefinition    `yaml:"agents"`
-	Router     RouterConfig                  `yaml:"router"`
-	NATS       NATSConfig                    `yaml:"nats"`
-	Web        WebConfig                     `yaml:"web"`
-	Scheduler  SchedulerConfig               `yaml:"scheduler"`
-	Vault      VaultConfig                   `yaml:"vault"`
-	AgentMail  AgentMailConfig               `yaml:"agentmail"`
-	Speech     SpeechConfig                 `yaml:"speech"`
+	Telegram  TelegramConfig             `yaml:"telegram"`
+	Defaults  DefaultsConfig             `yaml:"defaults"`
+	Agents    map[string]AgentDefinition `yaml:"agents"`
+	Router    RouterConfig               `yaml:"router"`
+	NATS      NATSConfig                 `yaml:"nats"`
+	Web       WebConfig                  `yaml:"web"`
+	Scheduler SchedulerConfig            `yaml:"scheduler"`
+	Vault     VaultConfig                `yaml:"vault"`
+	AgentMail AgentMailConfig            `yaml:"agentmail"`
+	Speech    SpeechConfig               `yaml:"speech"`
 }
 
 type AgentMailConfig struct {
@@ -46,7 +46,7 @@ type TelegramConfig struct {
 type DefaultsConfig struct {
 	Image           string        `yaml:"image"`
 	Model           string        `yaml:"model"`
-	MaxRunning   int           `yaml:"max_running"`
+	MaxRunning      int           `yaml:"max_running"`
 	IdleTimeout     time.Duration `yaml:"idle_timeout"`
 	AnthropicAPIKey string        `yaml:"anthropic_api_key"`
 	OAuthToken      string        `yaml:"oauth_token"`
@@ -59,16 +59,16 @@ const (
 )
 
 type AgentDefinition struct {
-	Description       string            `yaml:"description"`
-	Model             string            `yaml:"model"`
-	Image             string            `yaml:"image"`
-	ClaudeMD          string            `yaml:"claude_md"`
-	Workspace         string            `yaml:"workspace"`
-	Env               map[string]string `yaml:"env"`
-	Files             []FileMount       `yaml:"files"`
-	AllowedTools      []string          `yaml:"allowed_tools"`
-	NixEnabled        bool              `yaml:"nix_enabled"`
-	AgentMailInboxID  string            `yaml:"agentmail_inbox_id"`
+	Description      string            `yaml:"description"`
+	Model            string            `yaml:"model"`
+	Image            string            `yaml:"image"`
+	ClaudeMD         string            `yaml:"claude_md"`
+	Workspace        string            `yaml:"workspace"`
+	Env              map[string]string `yaml:"env"`
+	Files            []FileMount       `yaml:"files"`
+	AllowedTools     []string          `yaml:"allowed_tools"`
+	NixEnabled       bool              `yaml:"nix_enabled"`
+	AgentMailInboxID string            `yaml:"agentmail_inbox_id"`
 }
 
 type FileMount struct {
@@ -85,7 +85,6 @@ type NATSConfig struct {
 	DataDir string `yaml:"data_dir"`
 }
 
-
 type WebConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Port    int    `yaml:"port"`
@@ -99,8 +98,8 @@ type SchedulerConfig struct {
 func defaults() Config {
 	return Config{
 		Defaults: DefaultsConfig{
-			Image:         "praktor-agent:latest",
-			Model:         "claude-opus-4-7",
+			Image:       "praktor-agent:latest",
+			Model:       "claude-opus-4-7",
 			MaxRunning:  5,
 			IdleTimeout: 10 * time.Minute,
 		},

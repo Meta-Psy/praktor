@@ -29,7 +29,7 @@ func BuildAgentImage(ctx context.Context, docker *client.Client, imageName strin
 	if err != nil {
 		return fmt.Errorf("build image: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Drain the build output
 	if _, err := io.Copy(io.Discard, resp.Body); err != nil {

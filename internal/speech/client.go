@@ -64,7 +64,7 @@ func (c *Client) Transcribe(ctx context.Context, audio []byte, filename string) 
 	if err != nil {
 		return "", fmt.Errorf("transcription request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
@@ -112,7 +112,7 @@ func (c *Client) Synthesize(ctx context.Context, text, voice string) ([]byte, er
 	if err != nil {
 		return nil, fmt.Errorf("tts request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))

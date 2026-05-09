@@ -161,7 +161,7 @@ func downloadAndVerify(url, expectedChecksum, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download: unexpected status %d", resp.StatusCode)
@@ -172,16 +172,16 @@ func downloadAndVerify(url, expectedChecksum, destPath string) error {
 		return fmt.Errorf("create temp file: %w", err)
 	}
 	tmpPath := f.Name()
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	hasher := sha256.New()
 	w := io.MultiWriter(f, hasher)
 
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("download: %w", err)
 	}
-	f.Close()
+	_ = f.Close()
 
 	got := hex.EncodeToString(hasher.Sum(nil))
 	if got != expectedChecksum {
@@ -198,17 +198,17 @@ func downloadAndVerify(url, expectedChecksum, destPath string) error {
 		if err2 != nil {
 			return fmt.Errorf("open temp: %w", err2)
 		}
-		defer src.Close()
+		defer func() { _ = src.Close() }()
 
 		dst, err2 := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 		if err2 != nil {
 			return fmt.Errorf("create dest: %w", err2)
 		}
 		if _, err2 := io.Copy(dst, src); err2 != nil {
-			dst.Close()
+			_ = dst.Close()
 			return fmt.Errorf("copy: %w", err2)
 		}
-		dst.Close()
+		_ = dst.Close()
 	}
 
 	return nil
@@ -220,7 +220,7 @@ func fetchBaseURL(scriptURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status %d fetching install script", resp.StatusCode)
@@ -259,7 +259,7 @@ func fetchVersion(baseURL string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status %d fetching latest version", resp.StatusCode)
@@ -280,7 +280,7 @@ func fetchChecksum(baseURL, version, platform string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status %d fetching manifest", resp.StatusCode)

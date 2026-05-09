@@ -46,7 +46,7 @@ func (h *Hub) Run(ctx context.Context) {
 			h.mu.RLock()
 			for client := range h.clients {
 				if err := client.WriteMessage(websocket.TextMessage, data); err != nil {
-					client.Close()
+					_ = client.Close()
 					delete(h.clients, client)
 				}
 			}
@@ -85,7 +85,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.hub.Register(conn)
 	defer func() {
 		s.hub.Unregister(conn)
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	// Keep connection alive, read messages (for future client → server)

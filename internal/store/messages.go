@@ -40,7 +40,7 @@ func (s *Store) GetMessages(agentID string, limit int) ([]Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var messages []Message
 	for rows.Next() {
@@ -75,7 +75,7 @@ func (s *Store) GetRecentMessages(limit int) ([]Message, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get recent messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var messages []Message
 	for rows.Next() {
@@ -112,7 +112,7 @@ func (s *Store) SearchMessages(agentID, query string, limit int) ([]Message, err
 	if err != nil {
 		return nil, fmt.Errorf("search messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var messages []Message
 	for rows.Next() {
@@ -137,7 +137,7 @@ func (s *Store) GetAgentMessageStats() (map[string]AgentMessageStats, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get agent message stats: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	stats := make(map[string]AgentMessageStats)
 	for rows.Next() {

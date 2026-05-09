@@ -57,12 +57,12 @@ func TopicEventsAgent(agentID string) string {
 }
 
 const (
-	TopicEventsAll             = "events.>"
-	TopicEventsTask            = "events.task.*"
-	TopicEventsTaskExecuted    = "events.task.executed"
-	TopicEventsSwarm           = "events.swarm.*"
-	TopicEventsSecret          = "events.secret.*"
-	TopicEventsSecretCreated   = "events.secret.created"
-	TopicEventsSecretUpdated   = "events.secret.updated"
-	TopicEventsSecretDeleted   = "events.secret.deleted"
+	TopicEventsAll           = "events.>"
+	TopicEventsTask          = "events.task.*"
+	TopicEventsTaskExecuted  = "events.task.executed"
+	TopicEventsSwarm         = "events.swarm.*"
+	TopicEventsSecret        = "events.secret.*"
+	TopicEventsSecretCreated = "events.secret.created"
+	TopicEventsSecretUpdated = "events.secret.updated"
+	TopicEventsSecretDeleted = "events.secret.deleted"
 )

@@ -282,4 +282,3 @@ func (s *Server) publishSecretEvent(topic, secretID, name string) {
 	}
 	_ = s.nats.Publish(topic, data)
 }
-

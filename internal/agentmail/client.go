@@ -121,7 +121,7 @@ func (c *Client) connect(ctx context.Context) error {
 		},
 	}
 	if err := conn.WriteJSON(sub); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("subscribe: %w", err)
 	}
 
@@ -133,7 +133,7 @@ func (c *Client) close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.conn != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 	}
 }
@@ -285,7 +285,7 @@ func (c *Client) listMessages(ctx context.Context, inboxID string, since time.Ti
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))

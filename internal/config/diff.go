@@ -11,7 +11,7 @@ type ConfigDiff struct {
 	DefaultsChanged bool
 	NewDefaults     DefaultsConfig
 
-	RouterChanged  bool
+	RouterChanged   bool
 	NewDefaultAgent string
 
 	SchedulerChanged bool

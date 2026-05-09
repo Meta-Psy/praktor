@@ -83,7 +83,7 @@ func runGateway() error {
 	if err != nil {
 		return fmt.Errorf("init store: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	slog.Info("store initialized", "path", config.StorePath)
 
 	// Embedded NATS
@@ -147,7 +147,7 @@ func runGateway() error {
 		if err != nil {
 			return fmt.Errorf("init telegram bot: %w", err)
 		}
-		go bot.Start(ctx)
+		go func() { _ = bot.Start(ctx) }()
 		slog.Info("telegram bot started")
 	} else {
 		slog.Warn("telegram token not set, bot disabled")

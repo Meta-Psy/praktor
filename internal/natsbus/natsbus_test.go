@@ -51,7 +51,7 @@ func TestPubSub(t *testing.T) {
 	if err := client.Publish("test.topic", []byte("hello")); err != nil {
 		t.Fatalf("publish error: %v", err)
 	}
-	client.Flush()
+	_ = client.Flush()
 
 	select {
 	case data := <-received:
@@ -91,7 +91,7 @@ func TestPublishJSON(t *testing.T) {
 	if err := client.PublishJSON("test.json", payload); err != nil {
 		t.Fatalf("publish json error: %v", err)
 	}
-	client.Flush()
+	_ = client.Flush()
 
 	select {
 	case data := <-received:

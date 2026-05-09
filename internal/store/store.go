@@ -222,7 +222,7 @@ func (s *Store) migrate() error {
 
 	// Drop legacy vector routing tables (vec0 virtual tables).
 	for _, table := range []string{"agent_embeddings", "learned_embeddings"} {
-		s.db.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS %s`, table))
+		_, _ = s.db.Exec(fmt.Sprintf(`DROP TABLE IF EXISTS %s`, table))
 	}
 
 	return nil
@@ -236,7 +236,7 @@ func (s *Store) migrateExtensionsToTables() error {
 	if err != nil {
 		return fmt.Errorf("query agents: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var agentID, extJSON string

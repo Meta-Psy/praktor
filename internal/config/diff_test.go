@@ -173,4 +173,3 @@ func TestDiff_MainChatIDChanged(t *testing.T) {
 		t.Errorf("expected 456, got %d", d.NewMainChatID)
 	}
 }
-

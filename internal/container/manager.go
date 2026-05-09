@@ -449,7 +449,7 @@ func (m *Manager) ReadVolumeFile(ctx context.Context, workspace, filePath, image
 	if err != nil {
 		return "", fmt.Errorf("copy from volume: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	tr := tar.NewReader(reader)
 	if _, err := tr.Next(); err != nil {

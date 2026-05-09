@@ -80,7 +80,7 @@ func createTestArchive(t *testing.T, entries map[string]string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	zw, err := zstd.NewWriter(f)
 	if err != nil {
@@ -101,8 +101,8 @@ func createTestArchive(t *testing.T, entries map[string]string) string {
 			t.Fatal(err)
 		}
 	}
-	tw.Close()
-	zw.Close()
+	_ = tw.Close()
+	_ = zw.Close()
 
 	return path
 }
@@ -110,10 +110,10 @@ func createTestArchive(t *testing.T, entries map[string]string) string {
 func TestScanArchiveVolumes(t *testing.T) {
 	archivePath := createTestArchive(t, map[string]string{
 		"praktor-data/db.sqlite":               "data",
-		"praktor-data/nats/":                    "",
-		"praktor-wk-agent1/workspace/file.go":   "code",
-		"praktor-home-agent1/.bashrc":           "bashrc",
-		"praktor-wk-agent1/workspace/other.go":  "more code",
+		"praktor-data/nats/":                   "",
+		"praktor-wk-agent1/workspace/file.go":  "code",
+		"praktor-home-agent1/.bashrc":          "bashrc",
+		"praktor-wk-agent1/workspace/other.go": "more code",
 	})
 
 	volumes, err := scanArchiveVolumes(archivePath)
@@ -152,7 +152,7 @@ func TestScanArchiveVolumes_Empty(t *testing.T) {
 func TestScanArchiveVolumes_NonPraktorEntries(t *testing.T) {
 	archivePath := createTestArchive(t, map[string]string{
 		"other-volume/file.txt":  "data",
-		"random-file.txt":       "data",
+		"random-file.txt":        "data",
 		"praktor-data/db.sqlite": "data",
 	})
 
@@ -177,7 +177,7 @@ func TestScanArchiveVolumes_InvalidFile(t *testing.T) {
 
 func TestScanArchiveVolumes_InvalidZstd(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bad.tar.zst")
-	os.WriteFile(path, []byte("not zstd data"), 0644)
+	_ = os.WriteFile(path, []byte("not zstd data"), 0644)
 
 	_, err := scanArchiveVolumes(path)
 	if err == nil {
@@ -214,17 +214,17 @@ func TestArchiveRoundTrip(t *testing.T) {
 			hdr.Typeflag = tar.TypeDir
 			hdr.Size = 0
 		}
-		tw.WriteHeader(hdr)
+		_ = tw.WriteHeader(hdr)
 		if len(e.content) > 0 {
-			tw.Write([]byte(e.content))
+			_, _ = tw.Write([]byte(e.content))
 		}
 	}
-	tw.Close()
-	zw.Close()
+	_ = tw.Close()
+	_ = zw.Close()
 
 	// Write to temp file for scanArchiveVolumes
 	path := filepath.Join(t.TempDir(), "roundtrip.tar.zst")
-	os.WriteFile(path, buf.Bytes(), 0644)
+	_ = os.WriteFile(path, buf.Bytes(), 0644)
 
 	// Scan volumes
 	volumes, err := scanArchiveVolumes(path)

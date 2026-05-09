@@ -16,7 +16,7 @@ func newTestRegistry(t *testing.T) (*Registry, *store.Store) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 
 	basePath := filepath.Join(dir, "agents")
 
@@ -225,4 +225,3 @@ func TestUserMDNotExist(t *testing.T) {
 		t.Errorf("expected empty content before sync, got %q", content)
 	}
 }
-

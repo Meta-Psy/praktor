@@ -31,23 +31,23 @@ type SwarmCoordinator interface {
 }
 
 type Orchestrator struct {
-	bus        *natsbus.Bus
-	client     *natsbus.Client
-	containers *container.Manager
-	store      *store.Store
-	registry   *registry.Registry
-	vault      *vault.Vault
-	cfg        config.DefaultsConfig
-	sessions   *SessionTracker
-	queues      map[string]*AgentQueue
-	lastMeta    map[string]map[string]string // agentID → last message meta (fallback for IPC)
-	pendingMeta   map[string]map[string]string // msgID → message meta
-	pendingMsgID  map[string]string            // msgID → agentID (track in-flight messages)
-	mu         sync.RWMutex
-	listeners     []OutputListener
-	fileListeners []FileListener
-	listenerMu    sync.RWMutex
-	swarmCoord SwarmCoordinator
+	bus             *natsbus.Bus
+	client          *natsbus.Client
+	containers      *container.Manager
+	store           *store.Store
+	registry        *registry.Registry
+	vault           *vault.Vault
+	cfg             config.DefaultsConfig
+	sessions        *SessionTracker
+	queues          map[string]*AgentQueue
+	lastMeta        map[string]map[string]string // agentID → last message meta (fallback for IPC)
+	pendingMeta     map[string]map[string]string // msgID → message meta
+	pendingMsgID    map[string]string            // msgID → agentID (track in-flight messages)
+	mu              sync.RWMutex
+	listeners       []OutputListener
+	fileListeners   []FileListener
+	listenerMu      sync.RWMutex
+	swarmCoord      SwarmCoordinator
 	agentMailAPIKey string
 }
 
@@ -61,15 +61,15 @@ type IPCCommand struct {
 
 func NewOrchestrator(bus *natsbus.Bus, ctr *container.Manager, s *store.Store, reg *registry.Registry, cfg config.DefaultsConfig, v *vault.Vault) *Orchestrator {
 	o := &Orchestrator{
-		bus:        bus,
-		containers: ctr,
-		store:      s,
-		registry:   reg,
-		vault:      v,
-		cfg:        cfg,
-		sessions:   NewSessionTracker(),
-		queues:      make(map[string]*AgentQueue),
-		lastMeta:    make(map[string]map[string]string),
+		bus:          bus,
+		containers:   ctr,
+		store:        s,
+		registry:     reg,
+		vault:        v,
+		cfg:          cfg,
+		sessions:     NewSessionTracker(),
+		queues:       make(map[string]*AgentQueue),
+		lastMeta:     make(map[string]map[string]string),
 		pendingMeta:  make(map[string]map[string]string),
 		pendingMsgID: make(map[string]string),
 	}
@@ -443,7 +443,6 @@ func (o *Orchestrator) popPendingMeta(msgID string) map[string]string {
 	}
 	return meta
 }
-
 
 func (o *Orchestrator) handleIPC(msg *nats.Msg) {
 	var cmd IPCCommand

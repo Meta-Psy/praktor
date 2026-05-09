@@ -10,7 +10,7 @@ import (
 
 func TestChunkMessage(t *testing.T) {
 	// Short message
-	chunks := chunkMessage("hello", 4096)
+	chunks := chunkMessage("hello")
 	if len(chunks) != 1 {
 		t.Errorf("expected 1 chunk, got %d", len(chunks))
 	}
@@ -20,7 +20,7 @@ func TestChunkMessage(t *testing.T) {
 	for i := range msg {
 		msg[i] = 'a'
 	}
-	chunks = chunkMessage(string(msg), 4096)
+	chunks = chunkMessage(string(msg))
 	if len(chunks) != 1 {
 		t.Errorf("expected 1 chunk for exact limit, got %d", len(chunks))
 	}
@@ -30,7 +30,7 @@ func TestChunkMessage(t *testing.T) {
 	for i := range msg {
 		msg[i] = 'a'
 	}
-	chunks = chunkMessage(string(msg), 4096)
+	chunks = chunkMessage(string(msg))
 	if len(chunks) != 2 {
 		t.Errorf("expected 2 chunks, got %d", len(chunks))
 	}
@@ -41,7 +41,7 @@ func TestChunkMessage(t *testing.T) {
 		msg[i] = 'a'
 	}
 	msg[3000] = '\n'
-	chunks = chunkMessage(string(msg), 4096)
+	chunks = chunkMessage(string(msg))
 	if len(chunks) != 2 {
 		t.Errorf("expected 2 chunks with newline split, got %d", len(chunks))
 	}
@@ -137,15 +137,15 @@ func TestConvertMarkdownTables(t *testing.T) {
 		t.Errorf("expected pre-formatted block, got:\n%s", got)
 	}
 	// Should preserve surrounding text
-	if !strings.Contains(got,"Here is a table:") || !strings.Contains(got,"End.") {
+	if !strings.Contains(got, "Here is a table:") || !strings.Contains(got, "End.") {
 		t.Errorf("surrounding text lost, got:\n%s", got)
 	}
 	// Should not contain raw pipe table syntax
-	if strings.Contains(got,"|---|") {
+	if strings.Contains(got, "|---|") {
 		t.Errorf("separator row not removed, got:\n%s", got)
 	}
 	// Should contain box-drawing separator
-	if !strings.Contains(got,"─┼─") {
+	if !strings.Contains(got, "─┼─") {
 		t.Errorf("expected box-drawing separator, got:\n%s", got)
 	}
 }

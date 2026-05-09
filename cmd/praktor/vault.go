@@ -28,7 +28,7 @@ func runVault(args []string) error {
 	if err != nil {
 		return fmt.Errorf("open store: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	switch args[0] {
 	case "list":
@@ -44,7 +44,7 @@ func runVault(args []string) error {
 	case "unassign":
 		return vaultUnassign(db, args[1:])
 	case "global":
-		return vaultGlobal(db, v, args[1:])
+		return vaultGlobal(db, args[1:])
 	default:
 		printVaultUsage()
 		return fmt.Errorf("unknown vault command: %s", args[0])
@@ -80,7 +80,7 @@ func vaultList(db *store.Store) error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tKIND\tGLOBAL\tDESCRIPTION\tAGENTS")
+	_, _ = fmt.Fprintln(w, "NAME\tKIND\tGLOBAL\tDESCRIPTION\tAGENTS")
 	for _, s := range secrets {
 		global := ""
 		if s.Global {
@@ -94,7 +94,7 @@ func vaultList(db *store.Store) error {
 			}
 			agents += id
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.Name, s.Kind, global, s.Description, agents)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", s.Name, s.Kind, global, s.Description, agents)
 	}
 	return w.Flush()
 }
@@ -222,7 +222,7 @@ func vaultUnassign(db *store.Store, args []string) error {
 	return nil
 }
 
-func vaultGlobal(db *store.Store, v *vault.Vault, args []string) error {
+func vaultGlobal(db *store.Store, args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("usage: praktor vault global <name> --enable|--disable")
 	}

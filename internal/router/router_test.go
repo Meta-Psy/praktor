@@ -17,7 +17,7 @@ func newTestRouter(t *testing.T) *Router {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 
 	agents := map[string]config.AgentDefinition{
 		"general": {Description: "General assistant", Workspace: "general"},

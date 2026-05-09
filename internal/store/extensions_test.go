@@ -308,7 +308,7 @@ func TestExtensionsMigrateFromBlob(t *testing.T) {
 
 	// Clear the normalized tables to simulate pre-migration state
 	for _, table := range []string{"agent_mcp_servers", "agent_marketplaces", "agent_plugins", "agent_skills"} {
-		s.db.Exec("DELETE FROM " + table + " WHERE agent_id = 'a1'")
+		_, _ = s.db.Exec("DELETE FROM " + table + " WHERE agent_id = 'a1'")
 	}
 
 	// Run migration

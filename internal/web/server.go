@@ -107,7 +107,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		server.Close()
+		_ = server.Close()
 	}()
 
 	slog.Info("web server listening", "addr", addr)

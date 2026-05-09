@@ -49,7 +49,7 @@ func TestTranscribe(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected file field: %v", err)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }()
 		if header.Filename != "voice.ogg" {
 			t.Errorf("expected filename voice.ogg, got %s", header.Filename)
 		}

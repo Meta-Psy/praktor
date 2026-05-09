@@ -14,10 +14,10 @@ import (
 
 func TestFetchBaseURL(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `#!/bin/sh`)
-		fmt.Fprintln(w, `DOWNLOAD_DIR="$HOME/.claude/downloads"`)
-		fmt.Fprintln(w, `DOWNLOAD_BASE_URL="https://downloads.example.com/claude-code-releases"`)
-		fmt.Fprintln(w, `echo "hello"`)
+		_, _ = fmt.Fprintln(w, `#!/bin/sh`)
+		_, _ = fmt.Fprintln(w, `DOWNLOAD_DIR="$HOME/.claude/downloads"`)
+		_, _ = fmt.Fprintln(w, `DOWNLOAD_BASE_URL="https://downloads.example.com/claude-code-releases"`)
+		_, _ = fmt.Fprintln(w, `echo "hello"`)
 	}))
 	defer ts.Close()
 
@@ -33,7 +33,7 @@ func TestFetchBaseURL(t *testing.T) {
 
 func TestFetchBaseURLSingleQuotes(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "DOWNLOAD_BASE_URL='https://example.com/releases'")
+		_, _ = fmt.Fprintln(w, "DOWNLOAD_BASE_URL='https://example.com/releases'")
 	}))
 	defer ts.Close()
 
@@ -48,8 +48,8 @@ func TestFetchBaseURLSingleQuotes(t *testing.T) {
 
 func TestFetchBaseURLMissing(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `#!/bin/sh`)
-		fmt.Fprintln(w, `echo "no base url here"`)
+		_, _ = fmt.Fprintln(w, `#!/bin/sh`)
+		_, _ = fmt.Fprintln(w, `echo "no base url here"`)
 	}))
 	defer ts.Close()
 
@@ -117,7 +117,7 @@ func TestFetchVersion(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		w.Write([]byte("1.2.3\n"))
+		_, _ = w.Write([]byte("1.2.3\n"))
 	}))
 	defer ts.Close()
 
@@ -161,7 +161,7 @@ func TestFetchChecksum(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		json.NewEncoder(w).Encode(m)
+		_ = json.NewEncoder(w).Encode(m)
 	}))
 	defer ts.Close()
 
@@ -178,7 +178,7 @@ func TestFetchChecksumPlatformNotFound(t *testing.T) {
 	m := testManifest()
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(m)
+		_ = json.NewEncoder(w).Encode(m)
 	}))
 	defer ts.Close()
 
@@ -202,7 +202,7 @@ func TestFetchChecksumHTTPError(t *testing.T) {
 
 func TestFetchChecksumInvalidJSON(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("not json"))
+		_, _ = w.Write([]byte("not json"))
 	}))
 	defer ts.Close()
 
@@ -235,7 +235,7 @@ func TestOutputJSON(t *testing.T) {
 
 	// Verify JSON field names.
 	var raw map[string]string
-	json.Unmarshal(data, &raw)
+	_ = json.Unmarshal(data, &raw)
 	for _, key := range []string{"version", "download_url", "sha256"} {
 		if _, ok := raw[key]; !ok {
 			t.Errorf("expected JSON key %q", key)
@@ -249,7 +249,7 @@ func TestDownloadAndVerify(t *testing.T) {
 	checksum := hex.EncodeToString(h[:])
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write(content)
+		_, _ = w.Write(content)
 	}))
 	defer ts.Close()
 
@@ -278,7 +278,7 @@ func TestDownloadAndVerify(t *testing.T) {
 
 func TestDownloadAndVerifyBadChecksum(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("some content"))
+		_, _ = w.Write([]byte("some content"))
 	}))
 	defer ts.Close()
 

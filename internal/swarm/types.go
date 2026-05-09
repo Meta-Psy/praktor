@@ -16,9 +16,9 @@ type SwarmRequest struct {
 }
 
 type SwarmAgent struct {
-	AgentID   string `json:"agent_id"`   // references config agent name
-	Role      string `json:"role"`       // display label in swarm
-	Prompt    string `json:"prompt"`     // per-agent instructions
+	AgentID   string `json:"agent_id"` // references config agent name
+	Role      string `json:"role"`     // display label in swarm
+	Prompt    string `json:"prompt"`   // per-agent instructions
 	Workspace string `json:"workspace"`
 }
 

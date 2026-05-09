@@ -7,8 +7,8 @@ import (
 
 // ExecutionPlan describes the order and grouping of agents for a swarm run.
 type ExecutionPlan struct {
-	Tiers          []ExecutionTier   // ordered groups; within a tier, agents run in parallel
-	CollabGroups   [][]string        // sets of roles connected by bidirectional synapses
+	Tiers          []ExecutionTier     // ordered groups; within a tier, agents run in parallel
+	CollabGroups   [][]string          // sets of roles connected by bidirectional synapses
 	PipelineInputs map[string][]string // role -> predecessor roles whose output feeds as context
 }
 
@@ -41,7 +41,7 @@ func BuildPlan(agents []SwarmAgent, synapses []Synapse, leadAgent string) (*Exec
 	}
 
 	// Separate directed and bidirectional synapses
-	directed := make(map[string][]string)   // from -> []to
+	directed := make(map[string][]string) // from -> []to
 	inDegree := make(map[string]int)
 	for _, role := range agents {
 		inDegree[role.Role] = 0

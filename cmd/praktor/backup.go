@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	volumePrefix    = "praktor-"
+	volumePrefix       = "praktor-"
 	defaultHelperImage = "alpine:3"
 )
 
@@ -58,7 +58,7 @@ func runBackup(args []string) error {
 	if err != nil {
 		return fmt.Errorf("docker client: %w", err)
 	}
-	defer docker.Close()
+	defer func() { _ = docker.Close() }()
 
 	volumes, err := listPraktorVolumes(ctx, docker)
 	if err != nil {
@@ -79,16 +79,16 @@ func runBackup(args []string) error {
 	if err != nil {
 		return fmt.Errorf("create output file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	zw, err := zstd.NewWriter(f)
 	if err != nil {
 		return fmt.Errorf("create zstd writer: %w", err)
 	}
-	defer zw.Close()
+	defer func() { _ = zw.Close() }()
 
 	tw := tar.NewWriter(zw)
-	defer tw.Close()
+	defer func() { _ = tw.Close() }()
 
 	for _, vol := range volumes {
 		slog.Info("backing up volume", "name", vol)
@@ -137,7 +137,7 @@ func backupVolume(ctx context.Context, docker *client.Client, tw *tar.Writer, vo
 	if err != nil {
 		return fmt.Errorf("copy from container: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Re-write tar entries with volume name prefix
 	srcTar := tar.NewReader(reader)
@@ -207,7 +207,7 @@ func runRestore(args []string) error {
 	if err != nil {
 		return fmt.Errorf("docker client: %w", err)
 	}
-	defer docker.Close()
+	defer func() { _ = docker.Close() }()
 
 	// Pre-scan: collect volume names from archive
 	volumeNames, err := scanArchiveVolumes(inputPath)
@@ -247,7 +247,7 @@ func runRestore(args []string) error {
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	zr, err := zstd.NewReader(f)
 	if err != nil {
@@ -259,10 +259,10 @@ func runRestore(args []string) error {
 
 	// Track current volume's streaming state
 	var (
-		currentVol string
-		pw         *io.PipeWriter
-		volTW      *tar.Writer
-		copyErr    chan error
+		currentVol  string
+		pw          *io.PipeWriter
+		volTW       *tar.Writer
+		copyErr     chan error
 		containerID string
 	)
 
@@ -270,8 +270,8 @@ func runRestore(args []string) error {
 		if volTW == nil {
 			return nil
 		}
-		volTW.Close()
-		pw.Close()
+		_ = volTW.Close()
+		_ = pw.Close()
 		if err := <-copyErr; err != nil {
 			return fmt.Errorf("copy to container for %s: %w", currentVol, err)
 		}
@@ -320,8 +320,8 @@ func runRestore(args []string) error {
 		if err != nil {
 			// Clean up on error
 			if volTW != nil {
-				volTW.Close()
-				pw.Close()
+				_ = volTW.Close()
+				_ = pw.Close()
 				<-copyErr
 				_ = docker.ContainerRemove(ctx, containerID, dockercontainer.RemoveOptions{Force: true})
 			}
@@ -373,7 +373,7 @@ func scanArchiveVolumes(path string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	zr, err := zstd.NewReader(f)
 	if err != nil {
@@ -462,7 +462,7 @@ func ensureImage(ctx context.Context, docker *client.Client, image string) error
 	if err != nil {
 		return err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	_, _ = io.Copy(io.Discard, reader)
 	return nil
 }
