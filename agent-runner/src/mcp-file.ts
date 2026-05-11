@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { readFileSync, statSync } from "fs";
 import { basename, extname } from "path";
+import { pathToFileURL } from "url";
 import { sendIPC } from "./ipc.js";
 
 const MAX_FILE_SIZE = 12 * 1024 * 1024; // 12MB
@@ -100,7 +101,9 @@ async function main(): Promise<void> {
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  console.error("MCP file server error:", err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("MCP file server error:", err);
+    process.exit(1);
+  });
+}

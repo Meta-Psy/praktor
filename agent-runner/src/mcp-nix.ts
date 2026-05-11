@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
 const server = new McpServer({
@@ -192,7 +193,9 @@ async function main(): Promise<void> {
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  console.error("MCP nix server error:", err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("MCP nix server error:", err);
+    process.exit(1);
+  });
+}

@@ -4,6 +4,7 @@ import { applyExtensions } from "./extensions.js";
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, lstatSync, readlinkSync, unlinkSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
+import { pathToFileURL } from "url";
 import { DatabaseSync } from "node:sqlite";
 
 // Patch console to prepend timestamps matching gateway format (YYYY/MM/DD HH:MM:SS)
@@ -957,7 +958,12 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  console.error("[agent] fatal error:", err);
-  process.exit(1);
-});
+// Only auto-run main() when this file is the process entrypoint — not when
+// it's imported by vitest. Otherwise main()'s NATS connect fails in test
+// environments and process.exit(1) bubbles up as an unhandled rejection.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("[agent] fatal error:", err);
+    process.exit(1);
+  });
+}
