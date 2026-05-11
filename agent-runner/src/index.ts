@@ -469,6 +469,36 @@ function buildQueryOptions(prompt: string, sessionId?: string) {
 }
 
 // Execute a scheduled task in parallel (fresh session, no resume)
+interface TaskResponseSignals {
+  result: string;
+  hasStreamedOutput: boolean;
+  hasFileSent: boolean;
+}
+
+interface TaskResponseDecision {
+  content: string;
+  warn: boolean;
+}
+
+// Decides what to publish as a task's final result message. Tasks are
+// unattended, so silent completions get a marker — but skip the marker when
+// the agent already delivered something user-visible (streamed text or a
+// file via the file_send IPC).
+export function decideTaskFinalResponse(
+  signals: TaskResponseSignals
+): TaskResponseDecision {
+  if (signals.result) {
+    return { content: signals.result, warn: false };
+  }
+  if (signals.hasStreamedOutput) {
+    return { content: "[response was streamed]", warn: false };
+  }
+  if (signals.hasFileSent) {
+    return { content: "", warn: false };
+  }
+  return { content: "⚠️ Task completed with no output.", warn: true };
+}
+
 async function executeTask(data: Record<string, unknown>): Promise<void> {
   const text = data.text as string;
   const msgId = data.msg_id as string | undefined;
@@ -481,6 +511,7 @@ async function executeTask(data: Record<string, unknown>): Promise<void> {
   let fullResponse = "";
   let terminalReason: string | undefined;
   let hasStreamedOutput = false;
+  let hasFileSent = false;
 
   try {
     const opts = buildQueryOptions(text);
@@ -510,12 +541,15 @@ async function executeTask(data: Record<string, unknown>): Promise<void> {
               await bridge.publishOutput(block.text, "text", msgId);
             } else if (block.type === "tool_use" || block.type === "server_tool_use") {
               console.log(`[task] tool: ${block.name}`);
+              if (block.name === "mcp__praktor-file__file_send") {
+                hasFileSent = true;
+              }
             }
           }
         }
       }
     } catch (streamErr) {
-      if (fullResponse || hasStreamedOutput) {
+      if (fullResponse || hasStreamedOutput || hasFileSent) {
         console.warn(`[task] claude process exited with error after output, ignoring:`, streamErr);
       } else {
         throw streamErr;
@@ -523,17 +557,15 @@ async function executeTask(data: Record<string, unknown>): Promise<void> {
     }
 
     if (!aborted) {
-      if (!fullResponse && hasStreamedOutput) {
-        fullResponse = "[response was streamed]";
-      }
-      // Tasks are unattended — if Claude returned nothing useful, surface
-      // a marker so the user knows the run happened. Without this, a
-      // success result with empty content silently disappears.
-      if (!fullResponse) {
-        fullResponse = "⚠️ Task completed with no output.";
+      const decision = decideTaskFinalResponse({
+        result: fullResponse,
+        hasStreamedOutput,
+        hasFileSent,
+      });
+      if (decision.warn) {
         console.warn(`[task] completed with no output (msg_id=${msgId}, terminal=${terminalReason ?? "none"})`);
       }
-      await bridge.publishResult(fullResponse, msgId, terminalReason);
+      await bridge.publishResult(decision.content, msgId, terminalReason);
     }
     if (terminalReason && terminalReason !== "completed") {
       console.log(`[task] completed (terminal_reason: ${terminalReason})`);
