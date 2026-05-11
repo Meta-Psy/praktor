@@ -29,7 +29,7 @@ const MIME_TYPES: Record<string, string> = {
   ".ogg": "audio/ogg",
 };
 
-function detectMimeType(filePath: string): string {
+export function detectMimeType(filePath: string): string {
   const ext = extname(filePath).toLowerCase();
   return MIME_TYPES[ext] || "application/octet-stream";
 }

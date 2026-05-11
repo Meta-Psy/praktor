@@ -384,7 +384,7 @@ function loadSystemPrompt(includeIdentity = true): string {
   return parts.join("\n\n---\n\n");
 }
 
-function inferTerminalReason(errorMsg: string): string | undefined {
+export function inferTerminalReason(errorMsg: string): string | undefined {
   if (/maximum number of turns/i.test(errorMsg)) return "max_turns";
   if (/blocking.*limit/i.test(errorMsg)) return "blocking_limit";
   if (/abort/i.test(errorMsg)) return "aborted_tools";
