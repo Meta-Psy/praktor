@@ -11,6 +11,10 @@ RUN node esbuild.mjs
 FROM ghcr.io/mtzanidakis/praktor-agent-base:latest
 COPY --from=agent-builder /app/out/ /app/
 RUN /usr/local/bin/getcc -get-version 2.1.156 -save /usr/local/bin/claude && chmod 555 /usr/local/bin/claude
+# Safety guardrails (Phase E.1 hook-mount): командный PreToolUse-хук, читается
+# агентом через settingSources из /home/praktor/.claude/settings.json.
+COPY agent-runner/hooks/safety-guard.cjs /opt/praktor-hooks/safety-guard.cjs
+RUN chmod 555 /opt/praktor-hooks/safety-guard.cjs
 USER praktor
 WORKDIR /workspace/agent
 ENTRYPOINT ["tini", "--", "node", "/app/index.mjs"]
