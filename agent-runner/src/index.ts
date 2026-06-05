@@ -1,6 +1,7 @@
-import { query, startup, type McpServerConfig, type WarmQuery } from "@anthropic-ai/claude-agent-sdk";
+import { query, startup, type McpServerConfig, type WarmQuery, type SettingSource } from "@anthropic-ai/claude-agent-sdk";
 import { NatsBridge } from "./nats-bridge.js";
 import { applyExtensions } from "./extensions.js";
+import { installSafetyHooks } from "./safety-hooks.js";
 import { readFileSync, readdirSync, mkdirSync, writeFileSync, rmSync, symlinkSync, existsSync, lstatSync, readlinkSync, unlinkSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
@@ -458,6 +459,7 @@ function buildRunOptions(sessionId?: string) {
       maxTurns: MAX_TURNS,
       mcpServers,
       permissionMode: "bypassPermissions" as const,
+      settingSources: ["user", "project", "local"] satisfies SettingSource[],
       allowDangerouslySkipPermissions: true,
       stderr: (data: string) => {
         console.error(`[claude-stderr] ${data.trimEnd()}`);
@@ -893,6 +895,7 @@ async function main(): Promise<void> {
 
   installGlobalInstructions();
   ensureAgentMd();
+  installSafetyHooks();
   setupAgentBrowser();
   setupAgentMail();
 
