@@ -20,6 +20,15 @@ type Config struct {
 	Vault     VaultConfig                `yaml:"vault"`
 	AgentMail AgentMailConfig            `yaml:"agentmail"`
 	Speech    SpeechConfig               `yaml:"speech"`
+	Projects  map[string]ProjectDefinition `yaml:"projects"`
+}
+
+// ProjectDefinition is one project surfaced in the Mission Control roll-up.
+type ProjectDefinition struct {
+	Repo      string   `yaml:"repo"`       // owner/name on GitHub
+	Agents    []string `yaml:"agents"`     // Praktor agent ids associated with this project
+	DeployURL string   `yaml:"deploy_url"` // public URL to probe (HTTP 200 = healthy)
+	Health    string   `yaml:"health"`     // internal health URL (praktor-net), used if DeployURL empty
 }
 
 type AgentMailConfig struct {
