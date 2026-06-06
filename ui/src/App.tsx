@@ -9,6 +9,7 @@ const Tasks = lazy(() => import('./pages/Tasks'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Swarms = lazy(() => import('./pages/Swarms'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
+const Projects = lazy(() => import('./pages/Projects'));
 
 // SVG icon components (16x16)
 function IconDashboard() {
@@ -126,8 +127,20 @@ function IconLogout() {
   );
 }
 
+function IconProjects() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="4" width="14" height="10" rx="1.5" />
+      <path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1" />
+      <line x1="4" y1="8" x2="12" y2="8" />
+      <line x1="4" y1="11" x2="9" y2="11" />
+    </svg>
+  );
+}
+
 const navItems = [
   { to: '/', label: 'Dashboard', Icon: IconDashboard },
+  { to: '/projects', label: 'Projects', Icon: IconProjects },
   { to: '/agents', label: 'Agents', Icon: IconAgents },
   { to: '/conversations', label: 'Conversations', Icon: IconConversations },
   { to: '/tasks', label: 'Scheduled Tasks', Icon: IconTasks },
@@ -373,6 +386,7 @@ function App() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/projects" element={<Projects />} />
             <Route path="/user" element={<UserProfile />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/conversations" element={<Conversations />} />
