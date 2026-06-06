@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -49,10 +50,14 @@ type Server struct {
 
 	sessionMu sync.Mutex
 	sessions  map[string]time.Time // token → expiry
+
+	aggregator *Aggregator
+	projCache  *projectsCache
+	projects   map[string]config.ProjectDefinition
 }
 
-func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string) *Server {
-	return &Server{
+func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition) *Server {
+	srv := &Server{
 		store:      s,
 		bus:        bus,
 		orch:       orch,
@@ -66,6 +71,15 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 		startedAt:  time.Now(),
 		sessions:   make(map[string]time.Time),
 	}
+	srv.projects = projects
+	if len(srv.projects) > 0 {
+		srv.aggregator = &Aggregator{
+			gh:   &GitHubClient{Token: os.Getenv("GITHUB_READ_TOKEN")},
+			http: &http.Client{Timeout: 8 * time.Second},
+		}
+		srv.projCache = &projectsCache{ttl: 30 * time.Second}
+	}
+	return srv
 }
 
 func (s *Server) Start(ctx context.Context) error {

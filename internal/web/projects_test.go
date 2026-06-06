@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/mtzanidakis/praktor/internal/config"
 	"github.com/mtzanidakis/praktor/internal/container"
@@ -77,5 +78,19 @@ func TestBuildProjectStatus_PartialDegradation(t *testing.T) {
 	}
 	if st.Name != "x" {
 		t.Errorf("identity lost: %+v", st)
+	}
+}
+
+func TestProjectsCache(t *testing.T) {
+	calls := 0
+	c := &projectsCache{ttl: time.Minute, now: func() time.Time { return time.Unix(1000, 0) }}
+	build := func() []ProjectStatus {
+		calls++
+		return []ProjectStatus{{Name: "pdai"}}
+	}
+	_ = c.get(build)
+	_ = c.get(build) // within TTL → must NOT rebuild
+	if calls != 1 {
+		t.Fatalf("expected 1 build within TTL, got %d", calls)
 	}
 }

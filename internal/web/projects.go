@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/mtzanidakis/praktor/internal/config"
@@ -121,4 +122,45 @@ func liveness(agents []string, running []container.ContainerInfo) []AgentLive {
 		out = append(out, AgentLive{ID: id, Running: up[id]})
 	}
 	return out
+}
+
+// projectsCache memoizes the aggregated roll-up for ttl to respect GitHub rate limits.
+type projectsCache struct {
+	ttl  time.Duration
+	now  func() time.Time
+	mu   sync.Mutex
+	at   time.Time
+	data []ProjectStatus
+}
+
+func (c *projectsCache) get(build func() []ProjectStatus) []ProjectStatus {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := time.Now
+	if c.now != nil {
+		now = c.now
+	}
+	if c.data != nil && now().Sub(c.at) < c.ttl {
+		return c.data
+	}
+	c.data = build()
+	c.at = now()
+	return c.data
+}
+
+// handleProjects is the GET /api/projects handler.
+func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
+	if s.aggregator == nil {
+		jsonError(w, "projects roll-up not configured", http.StatusServiceUnavailable)
+		return
+	}
+	data := s.projCache.get(func() []ProjectStatus {
+		running, _ := s.orch.ListRunning(r.Context())
+		out := make([]ProjectStatus, 0, len(s.projects))
+		for name, def := range s.projects {
+			out = append(out, s.aggregator.BuildProjectStatus(r.Context(), name, def, running))
+		}
+		return out
+	})
+	jsonResponse(w, data)
 }
