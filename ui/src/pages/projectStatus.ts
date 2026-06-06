@@ -15,6 +15,7 @@ export function ciLabel(ci: CI): string {
   if (ci.status === 'in_progress' || ci.status === 'queued') return '… running';
   if (ci.conclusion === 'success') return '✓ passing';
   if (ci.conclusion === 'failure') return '✗ failing';
+  if (ci.status === 'none') return 'no runs';
   return ci.conclusion || ci.status || '—';
 }
 

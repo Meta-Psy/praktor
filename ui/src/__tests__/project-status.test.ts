@@ -6,6 +6,7 @@ describe('ciLabel', () => {
   it('maps failure', () => expect(ciLabel({ status: 'completed', conclusion: 'failure' })).toBe('✗ failing'));
   it('maps running', () => expect(ciLabel({ status: 'in_progress', conclusion: '' })).toBe('… running'));
   it('maps error', () => expect(ciLabel({ error: 'boom' } as never)).toBe('error'));
+  it('maps none', () => expect(ciLabel({ status: 'none', conclusion: '' })).toBe('no runs'));
 });
 
 describe('deployLabel', () => {

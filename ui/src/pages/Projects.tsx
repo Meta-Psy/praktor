@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useWebSocket } from '../hooks/useWebSocket';
 import { ciLabel, deployLabel, type ProjectStatus } from './projectStatus';
 
 const card: React.CSSProperties = {
@@ -10,8 +9,6 @@ const card: React.CSSProperties = {
 function Projects() {
   const [projects, setProjects] = useState<ProjectStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { events } = useWebSocket();
-
   const fetchProjects = useCallback(() => {
     fetch('/api/projects')
       .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
@@ -19,8 +16,11 @@ function Projects() {
       .catch((err) => setError(err.message));
   }, []);
 
-  useEffect(() => { fetchProjects(); }, [fetchProjects]);
-  useEffect(() => { fetchProjects(); }, [events, fetchProjects]);
+  useEffect(() => {
+    fetchProjects();
+    const id = setInterval(fetchProjects, 30000);
+    return () => clearInterval(id);
+  }, [fetchProjects]);
 
   if (error) return <div style={{ color: 'var(--danger, #c00)' }}>Error: {error}</div>;
   if (!projects) return <div>Loading…</div>;

@@ -134,18 +134,26 @@ type projectsCache struct {
 }
 
 func (c *projectsCache) get(build func() []ProjectStatus) []ProjectStatus {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	now := time.Now
+	nowFn := time.Now
 	if c.now != nil {
-		now = c.now
+		nowFn = c.now
 	}
-	if c.data != nil && now().Sub(c.at) < c.ttl {
-		return c.data
+
+	c.mu.Lock()
+	if c.data != nil && nowFn().Sub(c.at) < c.ttl {
+		data := c.data
+		c.mu.Unlock()
+		return data
 	}
-	c.data = build()
-	c.at = now()
-	return c.data
+	c.mu.Unlock()
+
+	data := build() // network I/O happens outside the lock
+
+	c.mu.Lock()
+	c.data = data
+	c.at = nowFn()
+	c.mu.Unlock()
+	return data
 }
 
 // handleProjects is the GET /api/projects handler.
@@ -155,10 +163,12 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := s.projCache.get(func() []ProjectStatus {
-		running, _ := s.orch.ListRunning(r.Context())
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		running, _ := s.orch.ListRunning(ctx)
 		out := make([]ProjectStatus, 0, len(s.projects))
 		for name, def := range s.projects {
-			out = append(out, s.aggregator.BuildProjectStatus(r.Context(), name, def, running))
+			out = append(out, s.aggregator.BuildProjectStatus(ctx, name, def, running))
 		}
 		return out
 	})

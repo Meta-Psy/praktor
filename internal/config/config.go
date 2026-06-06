@@ -10,16 +10,16 @@ import (
 )
 
 type Config struct {
-	Telegram  TelegramConfig             `yaml:"telegram"`
-	Defaults  DefaultsConfig             `yaml:"defaults"`
-	Agents    map[string]AgentDefinition `yaml:"agents"`
-	Router    RouterConfig               `yaml:"router"`
-	NATS      NATSConfig                 `yaml:"nats"`
-	Web       WebConfig                  `yaml:"web"`
-	Scheduler SchedulerConfig            `yaml:"scheduler"`
-	Vault     VaultConfig                `yaml:"vault"`
-	AgentMail AgentMailConfig            `yaml:"agentmail"`
-	Speech    SpeechConfig               `yaml:"speech"`
+	Telegram  TelegramConfig               `yaml:"telegram"`
+	Defaults  DefaultsConfig               `yaml:"defaults"`
+	Agents    map[string]AgentDefinition   `yaml:"agents"`
+	Router    RouterConfig                 `yaml:"router"`
+	NATS      NATSConfig                   `yaml:"nats"`
+	Web       WebConfig                    `yaml:"web"`
+	Scheduler SchedulerConfig              `yaml:"scheduler"`
+	Vault     VaultConfig                  `yaml:"vault"`
+	AgentMail AgentMailConfig              `yaml:"agentmail"`
+	Speech    SpeechConfig                 `yaml:"speech"`
 	Projects  map[string]ProjectDefinition `yaml:"projects"`
 }
 
