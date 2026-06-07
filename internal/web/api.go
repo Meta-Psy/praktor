@@ -70,6 +70,9 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/user-profile", s.getUserProfile)
 	mux.HandleFunc("PUT /api/user-profile", s.updateUserProfile)
 
+	// Projects roll-up (Mission Control)
+	mux.HandleFunc("GET /api/projects", s.handleProjects)
+
 	// System
 	mux.HandleFunc("GET /api/status", s.getStatus)
 }

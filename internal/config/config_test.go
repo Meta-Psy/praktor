@@ -242,3 +242,44 @@ router:
 		t.Fatal("expected validation error for nonexistent default_agent")
 	}
 }
+
+func TestProjectsParse(t *testing.T) {
+	yaml := `
+projects:
+  pdai:
+    repo: Meta-Psy/pdai_calculator
+    agents: [coder, notifier]
+    deploy_url: https://skinlabpro.uz
+  gnathology:
+    repo: Meta-Psy/gnathology-bot
+    agents: [gnatho-coder]
+    health: http://gnathology-bot:8099/health
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "praktor.yaml")
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PRAKTOR_CONFIG", path)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(cfg.Projects))
+	}
+	p := cfg.Projects["pdai"]
+	if p.Repo != "Meta-Psy/pdai_calculator" {
+		t.Errorf("pdai repo = %q", p.Repo)
+	}
+	if p.DeployURL != "https://skinlabpro.uz" {
+		t.Errorf("pdai deploy_url = %q", p.DeployURL)
+	}
+	if len(p.Agents) != 2 || p.Agents[0] != "coder" {
+		t.Errorf("pdai agents = %v", p.Agents)
+	}
+	if cfg.Projects["gnathology"].Health != "http://gnathology-bot:8099/health" {
+		t.Errorf("gnathology health = %q", cfg.Projects["gnathology"].Health)
+	}
+}
