@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ciLabel, deployLabel, type ProjectStatus } from './projectStatus';
+import { approve, mergePR, deploy } from './actions';
 
 const card: React.CSSProperties = {
   background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -21,6 +22,24 @@ function Projects() {
     const id = setInterval(fetchProjects, 30000);
     return () => clearInterval(id);
   }, [fetchProjects]);
+
+  const [pending, setPending] = useState<null | { label: string; run: () => Promise<void> }>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+
+  async function confirmRun() {
+    if (!pending) return;
+    setBusy(true);
+    setActionErr(null);
+    try {
+      await pending.run();
+      setPending(null);
+    } catch (e) {
+      setActionErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (error) return <div style={{ color: 'var(--danger, #c00)' }}>Error: {error}</div>;
   if (!projects) return <div>Loading…</div>;
@@ -49,15 +68,55 @@ function Projects() {
             {(p.prs ?? []).length > 0 && (
               <ul style={{ marginTop: 8, paddingLeft: 16, fontSize: 13 }}>
                 {p.prs!.map((pr) => (
-                  <li key={pr.number}>
+                  <li key={pr.number} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <a href={pr.url} target="_blank" rel="noopener noreferrer">#{pr.number} {pr.title}{pr.draft ? ' (draft)' : ''}</a>
+                    <button className="action-row" onClick={() => setPending({
+                      label: `merge ${p.repo}#${pr.number}`,
+                      run: () => mergePR(p.name, pr.number),
+                    })}>merge</button>
                   </li>
                 ))}
               </ul>
             )}
+            {(p.audit_issues ?? []).length > 0 && (
+              <div style={{ marginTop: 8, display: 'grid', gap: 4, fontSize: 13 }}>
+                {p.audit_issues!.map((iss) => (
+                  <div key={iss.number} className="action-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>audit #{iss.number}</span>
+                    <button onClick={() => setPending({
+                      label: `approve trivial on ${p.repo}#${iss.number}`,
+                      run: () => approve(p.name, 'trivial', iss.number),
+                    })}>approve trivial</button>
+                    <button onClick={() => setPending({
+                      label: `approve ALL on ${p.repo}#${iss.number}`,
+                      run: () => approve(p.name, 'all', iss.number),
+                    })}>approve all</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ marginTop: 8 }}>
+              <button className="action-row" onClick={() => setPending({
+                label: `deploy ${p.name}`,
+                run: () => deploy(p.name),
+              })}>deploy</button>
+            </div>
           </div>
         ))}
       </div>
+      {pending && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal">
+            <p>Подтвердить действие:</p>
+            <strong>{pending.label}</strong>
+            {actionErr && <p className="error">{actionErr}</p>}
+            <div className="modal-actions">
+              <button onClick={() => { setPending(null); setActionErr(null); }} disabled={busy}>Отмена</button>
+              <button onClick={confirmRun} disabled={busy}>{busy ? '…' : 'Подтвердить'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
