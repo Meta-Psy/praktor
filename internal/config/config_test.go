@@ -250,10 +250,13 @@ projects:
     repo: Meta-Psy/pdai_calculator
     agents: [coder, notifier]
     deploy_url: https://skinlabpro.uz
+    deploy_workflow: deploy.yml
   gnathology:
     repo: Meta-Psy/gnathology-bot
     agents: [gnatho-coder]
     health: http://gnathology-bot:8099/health
+    deploy_host_dir: /opt/apps/gnathology-bot/deploy
+    deploy_compose_project: gnathology-bot
 `
 	dir := t.TempDir()
 	path := filepath.Join(dir, "praktor.yaml")
@@ -281,5 +284,14 @@ projects:
 	}
 	if cfg.Projects["gnathology"].Health != "http://gnathology-bot:8099/health" {
 		t.Errorf("gnathology health = %q", cfg.Projects["gnathology"].Health)
+	}
+	if cfg.Projects["pdai"].DeployWorkflow != "deploy.yml" {
+		t.Errorf("pdai deploy_workflow = %q", cfg.Projects["pdai"].DeployWorkflow)
+	}
+	if cfg.Projects["gnathology"].DeployHostDir != "/opt/apps/gnathology-bot/deploy" {
+		t.Errorf("gnathology deploy_host_dir = %q", cfg.Projects["gnathology"].DeployHostDir)
+	}
+	if cfg.Projects["gnathology"].DeployComposeProject != "gnathology-bot" {
+		t.Errorf("gnathology deploy_compose_project = %q", cfg.Projects["gnathology"].DeployComposeProject)
 	}
 }

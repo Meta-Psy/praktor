@@ -29,6 +29,11 @@ type ProjectDefinition struct {
 	Agents    []string `yaml:"agents"`     // Praktor agent ids associated with this project
 	DeployURL string   `yaml:"deploy_url"` // public URL to probe (HTTP 200 = healthy)
 	Health    string   `yaml:"health"`     // internal health URL (praktor-net), used if DeployURL empty
+
+	// Deploy mechanism (F.3). Exactly one of DeployWorkflow / DeployHostDir is used.
+	DeployWorkflow       string `yaml:"deploy_workflow"`        // GitHub Actions workflow file to dispatch (e.g. deploy.yml)
+	DeployHostDir        string `yaml:"deploy_host_dir"`        // host path of a git working copy to pull+rebuild
+	DeployComposeProject string `yaml:"deploy_compose_project"` // compose -p name (must match existing stack)
 }
 
 type AgentMailConfig struct {
