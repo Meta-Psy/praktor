@@ -1429,7 +1429,8 @@ gh pr create --repo Meta-Psy/praktor --base main --head feature/f3-approve-from-
 These are NOT plan tasks — they are the human gates after code review/merge:
 
 1. **Create `GITHUB_WRITE_TOKEN`** — fine-grained PAT, both repos (`pdai_calculator` + `gnathology-bot`), scopes: `contents` + `pull_requests` + `issues` + `actions` : write → add to server `.env`.
-2. **Convert gnathology deploy dir to a git working copy** — on own_landing: clone `Meta-Psy/gnathology-bot` into `/opt/apps/gnathology-bot/deploy` (or `git init` + remote) preserving `.env` + `data/`; add `.env` and `data/` to `.gitignore`. Verify `git -C … pull --ff-only` works.
+2. **Convert gnathology deploy dir to a git working copy** — on own_landing: clone `Meta-Psy/gnathology-bot` into `/opt/apps/gnathology-bot/deploy` (or `git init` + remote) preserving `.env` + `data/`; add `.env` and `data/` to `.gitignore`. Verify `git -C … pull --ff-only` works. **Also confirm the compose file is named `compose.yml` at the repo root** (the deployer runs `docker compose -f /repo/compose.yml`); if it's `docker-compose.yml` or nested, adjust `composeFile` in `host_deploy.go` before the live gate.
+   - *(Helper images `alpine/git` + `docker:cli` are auto-pulled by the deployer if absent — no manual pre-pull needed. Review fix `77a9293`.)*
 3. **Rebuild `praktor:f2` image** with F.3 code + `docker restart praktor`.
 4. **Add deploy fields to the server `praktor.yaml`** (`deploy_workflow` / `deploy_host_dir` + `deploy_compose_project`) — flow-style one-liner per F.2 lesson.
 5. **Live tests from phone:** approve (audit issue), merge (a throwaway PR), deploy pdai (dispatch), deploy gnathology (host rebuild). Confirm TG audit line arrives for each.
