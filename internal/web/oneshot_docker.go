@@ -28,6 +28,12 @@ func (d *dockerOneShot) Run(ctx context.Context, spec oneShotSpec) (string, int,
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
+	// ContainerCreate does not auto-pull; pull the helper image if it is absent
+	// locally (otherwise the first deploy on a clean/pruned host fails opaquely).
+	if err := d.ensureImage(ctx, spec.Image); err != nil {
+		return "", 0, err
+	}
+
 	name := fmt.Sprintf("praktor-deploy-%d", time.Now().UnixNano())
 	resp, err := d.docker.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Config: &dockercontainer.Config{
@@ -71,6 +77,20 @@ func (d *dockerOneShot) Run(ctx context.Context, spec oneShotSpec) (string, int,
 		logs = buf.String()
 	}
 	return logs, exit, nil
+}
+
+// ensureImage pulls ref if it is not already present locally.
+func (d *dockerOneShot) ensureImage(ctx context.Context, ref string) error {
+	if _, err := d.docker.ImageInspect(ctx, ref); err == nil {
+		return nil // already present
+	}
+	resp, err := d.docker.ImagePull(ctx, ref, client.ImagePullOptions{})
+	if err != nil {
+		return fmt.Errorf("pull %s: %w", ref, err)
+	}
+	defer func() { _ = resp.Close() }()
+	_, _ = io.Copy(io.Discard, resp) // drain so the pull completes before create
+	return nil
 }
 
 // writeBuf is a tiny io.Writer accumulator (avoids importing bytes just for this).

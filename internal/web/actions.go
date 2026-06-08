@@ -10,7 +10,10 @@ import (
 )
 
 // audit emits a Telegram line for a control-plane action; ok=false prefixes ❌.
-func (s *Server) audit(ctx context.Context, ok bool, detail string) {
+// It uses a fresh context on purpose: the request ctx may already be cancelled
+// (e.g. the action hit its deadline), and the failure audit is exactly the
+// signal that must still get through.
+func (s *Server) audit(ok bool, detail string) {
 	if s.tg == nil {
 		return
 	}
@@ -18,6 +21,8 @@ func (s *Server) audit(ctx context.Context, ok bool, detail string) {
 	if !ok {
 		mark = "❌"
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
 	s.tg.Notify(ctx, fmt.Sprintf("%s MC: %s", mark, detail))
 }
 
@@ -48,11 +53,11 @@ func (s *Server) handleApprove(w http.ResponseWriter, r *http.Request) {
 	detail := fmt.Sprintf("approve %s on %s#%d", body.Tier, def.Repo, body.Issue)
 	err := s.ghWrite.AddComment(ctx, def.Repo, body.Issue, "/approve "+body.Tier)
 	if err != nil {
-		s.audit(ctx, false, detail+": "+err.Error())
+		s.audit(false, detail+": "+err.Error())
 		jsonError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	s.audit(ctx, true, detail)
+	s.audit(true, detail)
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
@@ -71,11 +76,11 @@ func (s *Server) handleMerge(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	detail := fmt.Sprintf("merge %s#%d", def.Repo, n)
 	if err := s.ghWrite.MergePR(ctx, def.Repo, n, "squash"); err != nil {
-		s.audit(ctx, false, detail+": "+err.Error())
+		s.audit(false, detail+": "+err.Error())
 		jsonError(w, err.Error(), http.StatusBadGateway)
 		return
 	}
-	s.audit(ctx, true, detail)
+	s.audit(true, detail)
 	jsonResponse(w, map[string]string{"status": "ok"})
 }
 
@@ -93,11 +98,11 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	case def.DeployWorkflow != "":
 		detail := fmt.Sprintf("deploy %s (dispatch %s)", key, def.DeployWorkflow)
 		if err := s.ghWrite.DispatchWorkflow(ctx, def.Repo, def.DeployWorkflow, "main"); err != nil {
-			s.audit(ctx, false, detail+": "+err.Error())
+			s.audit(false, detail+": "+err.Error())
 			jsonError(w, err.Error(), http.StatusBadGateway)
 			return
 		}
-		s.audit(ctx, true, detail)
+		s.audit(true, detail)
 		jsonResponse(w, map[string]string{"status": "ok"})
 
 	case def.DeployHostDir != "":
@@ -113,11 +118,11 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 			Token:       s.writeToken(),
 		}
 		if err := dep.Deploy(ctx); err != nil {
-			s.audit(ctx, false, detail+": "+err.Error())
+			s.audit(false, detail+": "+err.Error())
 			jsonError(w, err.Error(), http.StatusBadGateway)
 			return
 		}
-		s.audit(ctx, true, detail)
+		s.audit(true, detail)
 		jsonResponse(w, map[string]string{"status": "ok"})
 
 	default:
