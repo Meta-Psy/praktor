@@ -72,6 +72,9 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 
 	// Projects roll-up (Mission Control)
 	mux.HandleFunc("GET /api/projects", s.handleProjects)
+	mux.HandleFunc("POST /api/projects/{key}/approve", s.handleApprove)
+	mux.HandleFunc("POST /api/projects/{key}/pulls/{n}/merge", s.handleMerge)
+	mux.HandleFunc("POST /api/projects/{key}/deploy", s.handleDeploy)
 
 	// System
 	mux.HandleFunc("GET /api/status", s.getStatus)

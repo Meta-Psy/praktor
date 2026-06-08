@@ -34,6 +34,13 @@ const (
 	sessionMaxAge     = 30 * 24 * time.Hour // 30 days
 )
 
+// ghWriter is the write surface used by action handlers (mockable in tests).
+type ghWriter interface {
+	AddComment(ctx context.Context, repo string, issue int, body string) error
+	MergePR(ctx context.Context, repo string, n int, method string) error
+	DispatchWorkflow(ctx context.Context, repo, workflow, ref string) error
+}
+
 type Server struct {
 	store      *store.Store
 	bus        *natsbus.Bus
@@ -54,9 +61,12 @@ type Server struct {
 	aggregator *Aggregator
 	projCache  *projectsCache
 	projects   map[string]config.ProjectDefinition
+	ghWrite    ghWriter      // GitHub write-client (F.3)
+	tg         auditor       // Telegram audit (F.3)
+	oneShot    oneShotRunner // host one-shot container runner (F.3)
 }
 
-func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition) *Server {
+func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig) *Server {
 	srv := &Server{
 		store:      s,
 		bus:        bus,
@@ -78,6 +88,13 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 			http: &http.Client{Timeout: 8 * time.Second},
 		}
 		srv.projCache = &projectsCache{ttl: 30 * time.Second}
+		srv.ghWrite = &WriteGitHubClient{Token: os.Getenv("GITHUB_WRITE_TOKEN")}
+		srv.tg = &tgAuditor{Token: tg.Token, ChatID: tg.MainChatID}
+		if r, err := newDockerOneShot(); err != nil {
+			slog.Warn("host deploy disabled: docker client", "err", err)
+		} else {
+			srv.oneShot = r
+		}
 	}
 	return srv
 }
