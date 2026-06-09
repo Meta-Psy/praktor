@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ciLabel, deployLabel, type ProjectStatus } from './projectStatus';
+import { ciLabel, deployLabel, deployRunLabel, type ProjectStatus } from './projectStatus';
 import { approve, mergePR, deploy } from './actions';
 
 const card: React.CSSProperties = {
@@ -23,6 +23,14 @@ function Projects() {
     return () => clearInterval(id);
   }, [fetchProjects]);
 
+  // While any deploy is running, poll faster so the card status feels live.
+  const anyRunning = (projects ?? []).some((p) => p.deploy_run?.state === 'running');
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(fetchProjects, 4000);
+    return () => clearInterval(id);
+  }, [anyRunning, fetchProjects]);
+
   const [pending, setPending] = useState<null | { label: string; run: () => Promise<void> }>(null);
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState<string | null>(null);
@@ -34,6 +42,7 @@ function Projects() {
     try {
       await pending.run();
       setPending(null);
+      fetchProjects();
     } catch (e) {
       setActionErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -64,6 +73,11 @@ function Projects() {
               <div>agents: {(p.agents ?? []).map((a) => (
                 <span key={a.id} style={{ marginRight: 8 }}>{a.id} {a.running ? '●' : '○'}</span>
               ))}</div>
+              {deployRunLabel(p.deploy_run) && (
+                <div style={{ color: p.deploy_run?.state === 'failed' ? '#c0392b' : 'var(--text-secondary)' }}>
+                  {deployRunLabel(p.deploy_run)}
+                </div>
+              )}
             </div>
             {(p.prs ?? []).length > 0 && (
               <ul style={{ marginTop: 8, paddingLeft: 16, fontSize: 13 }}>
@@ -96,7 +110,7 @@ function Projects() {
               </div>
             )}
             <div style={{ marginTop: 8 }}>
-              <button className="action-row" onClick={() => setPending({
+              <button className="action-row" disabled={p.deploy_run?.state === 'running'} onClick={() => setPending({
                 label: `deploy ${p.name}`,
                 run: () => deploy(p.name),
               })}>deploy</button>

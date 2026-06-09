@@ -41,4 +41,10 @@ describe("actions client", () => {
     vi.stubGlobal("fetch", f);
     await expect(deploy("gnathology")).rejects.toThrow(/no space left/);
   });
+
+  it("deploy resolves on 202 (started)", async () => {
+    const f = mockFetch(true, { status: "started" });
+    vi.stubGlobal("fetch", f);
+    await expect(deploy("gnathology")).resolves.toBeUndefined();
+  });
 });
