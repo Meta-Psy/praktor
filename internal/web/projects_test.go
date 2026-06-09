@@ -94,3 +94,23 @@ func TestProjectsCache(t *testing.T) {
 		t.Fatalf("expected 1 build within TTL, got %d", calls)
 	}
 }
+
+func TestOverlayDeployRuns(t *testing.T) {
+	d := newDeployStore()
+	d.tryStart("pdai")
+	data := []ProjectStatus{
+		{Name: "pdai", Repo: "x/pdai"},
+		{Name: "gnathology", Repo: "x/g"},
+	}
+	out := overlayDeployRuns(data, d)
+	if out[0].DeployRun.State != "running" {
+		t.Fatalf("pdai deploy_run = %q, want running", out[0].DeployRun.State)
+	}
+	if out[1].DeployRun.State != "" {
+		t.Fatalf("gnathology deploy_run = %q, want empty", out[1].DeployRun.State)
+	}
+	// The input slice (which may be the shared cache) must NOT be mutated.
+	if data[0].DeployRun.State != "" {
+		t.Fatal("overlay must not mutate the input (cached) slice")
+	}
+}

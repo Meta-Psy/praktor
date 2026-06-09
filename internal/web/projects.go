@@ -44,6 +44,19 @@ type ProjectStatus struct {
 	CI          ciResult     `json:"ci"`
 	Deploy      DeployStatus `json:"deploy"`
 	Agents      []AgentLive  `json:"agents"`
+	DeployRun   deployRun    `json:"deploy_run"`
+}
+
+// overlayDeployRuns returns a copy of data with each project's live deploy_run
+// stamped from the store. The input slice (which may be the shared cache) is not
+// mutated, so the live deploy status bypasses the roll-up's 30s TTL.
+func overlayDeployRuns(data []ProjectStatus, d *deployStore) []ProjectStatus {
+	out := make([]ProjectStatus, len(data))
+	copy(out, data)
+	for i := range out {
+		out[i].DeployRun = d.snapshot(out[i].Name)
+	}
+	return out
 }
 
 // ciResult is CIStatus plus an error slot for partial degradation.
@@ -172,5 +185,5 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		}
 		return out
 	})
-	jsonResponse(w, data)
+	jsonResponse(w, overlayDeployRuns(data, s.deploys))
 }
