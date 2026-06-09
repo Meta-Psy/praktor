@@ -8,7 +8,6 @@ import (
 const (
 	defaultGitImage     = "alpine/git"
 	defaultComposeImage = "docker:cli"
-	composeFile         = "/repo/compose.yml"
 	dockerSockBind      = "/var/run/docker.sock:/var/run/docker.sock"
 )
 
@@ -26,25 +25,41 @@ type oneShotRunner interface {
 }
 
 // GnathologyDeployer rebuilds the gnathology bot on the host: pull latest main,
-// then compose up --build. The deploy dir must already be a git working copy
-// (one-time [ALEX] setup) with .env and data/ gitignored.
+// then compose up --build. HostDir must be the repo ROOT as a git working copy
+// (one-time [ALEX] setup) with .env and data/ gitignored; compose.yml lives in
+// its deploy/ subdir and its build context (..) points back at the root for the
+// Dockerfile + src.
 type GnathologyDeployer struct {
 	Runner      oneShotRunner
-	HostDir     string // e.g. /opt/apps/gnathology-bot/deploy
+	HostDir     string // repo root, e.g. /opt/apps/gnathology-bot (git working copy)
 	ComposeProj string // e.g. gnathology-bot (must match existing stack)
 	Token       string // GitHub write PAT for the private pull
 }
 
 func (d *GnathologyDeployer) Deploy(ctx context.Context) error {
-	repoBind := d.HostDir + ":/repo"
+	// Bind the repo at the SAME path inside the one-shots as on the host. docker
+	// compose runs in docker:cli and talks to the host daemon over the socket; the
+	// relative bind mounts (./data) and build context (..) in deploy/compose.yml are
+	// resolved against the compose-file's directory and sent to the daemon verbatim.
+	// Only a same-path mount makes those resolve to real HOST paths — a /repo mount
+	// would emit /repo/... which the host daemon can't find, silently mounting empty
+	// dirs and losing the bot's data.
+	bind := d.HostDir + ":" + d.HostDir
+	composeFile := d.HostDir + "/deploy/compose.yml"
 
-	// 1) git pull --ff-only (token via env, never in argv).
+	// 1) git pull --ff-only. Token passed via env; the Basic header is built in-shell.
+	//    GitHub's git-over-HTTPS endpoint speaks HTTP Basic (username ignored for a
+	//    PAT, token as password) — NOT Bearer, which it rejects with a 401 and an
+	//    interactive credential prompt. safe.directory because the one-shot runs as
+	//    root while the working copy is owned by the deploy user.
+	pullCmd := `git -c safe.directory="` + d.HostDir + `"` +
+		` -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' $GIT_TOKEN | base64 | tr -d '\n')"` +
+		` -C "` + d.HostDir + `" pull --ff-only`
 	logs, code, err := d.Runner.Run(ctx, oneShotSpec{
 		Image: defaultGitImage,
-		Binds: []string{repoBind},
+		Binds: []string{bind},
 		Env:   []string{"GIT_TOKEN=" + d.Token},
-		Cmd: []string{"sh", "-c",
-			`git -c http.extraheader="AUTHORIZATION: bearer $GIT_TOKEN" -C /repo pull --ff-only`},
+		Cmd:   []string{"sh", "-c", pullCmd},
 	})
 	if err != nil {
 		return fmt.Errorf("git pull: %w", err)
@@ -57,7 +72,7 @@ func (d *GnathologyDeployer) Deploy(ctx context.Context) error {
 	//    (not creating a second one under the bind-mount basename).
 	logs, code, err = d.Runner.Run(ctx, oneShotSpec{
 		Image: defaultComposeImage,
-		Binds: []string{repoBind, dockerSockBind},
+		Binds: []string{bind, dockerSockBind},
 		Cmd:   []string{"docker", "compose", "-p", d.ComposeProj, "-f", composeFile, "up", "-d", "--build"},
 	})
 	if err != nil {
