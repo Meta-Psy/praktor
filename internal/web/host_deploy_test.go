@@ -55,15 +55,28 @@ func TestDeploySuccess(t *testing.T) {
 	if !contains(pull.Env, "GIT_TOKEN=wtok") {
 		t.Errorf("pull env = %v", pull.Env)
 	}
-	if !contains(pull.Binds, "/opt/apps/gnathology-bot:/repo") {
+	// Same-path mount (host path == container path) so compose's relative binds and
+	// build context resolve to real host paths over the mounted daemon socket.
+	if !contains(pull.Binds, "/opt/apps/gnathology-bot:/opt/apps/gnathology-bot") {
 		t.Errorf("pull binds = %v", pull.Binds)
 	}
 	if contains(pull.Binds, "/var/run/docker.sock:/var/run/docker.sock") {
 		t.Errorf("pull must NOT mount docker socket")
 	}
+	pullCmd := strings.Join(pull.Cmd, " ")
+	// root one-shot over a deploy-user-owned tree needs safe.directory.
+	if !strings.Contains(pullCmd, `safe.directory="/opt/apps/gnathology-bot"`) {
+		t.Errorf("pull must set safe.directory: %q", pullCmd)
+	}
+	if !strings.Contains(pullCmd, "pull --ff-only") {
+		t.Errorf("pull cmd = %q", pullCmd)
+	}
 	comp := r.calls[1]
 	if comp.Image != defaultComposeImage {
 		t.Errorf("compose image = %q", comp.Image)
+	}
+	if !contains(comp.Binds, "/opt/apps/gnathology-bot:/opt/apps/gnathology-bot") {
+		t.Errorf("compose must same-path mount the repo: %v", comp.Binds)
 	}
 	if !contains(comp.Binds, "/var/run/docker.sock:/var/run/docker.sock") {
 		t.Errorf("compose must mount docker socket: %v", comp.Binds)
@@ -75,8 +88,8 @@ func TestDeploySuccess(t *testing.T) {
 	if !strings.Contains(joined, "up -d --build") {
 		t.Errorf("compose cmd = %q", joined)
 	}
-	// compose.yml lives in the repo's deploy/ subdir, not the git root.
-	if !strings.Contains(joined, "-f /repo/deploy/compose.yml") {
+	// compose.yml lives in the repo's deploy/ subdir, addressed by its real host path.
+	if !strings.Contains(joined, "-f /opt/apps/gnathology-bot/deploy/compose.yml") {
 		t.Errorf("compose must reference deploy-subdir file: %q", joined)
 	}
 }
