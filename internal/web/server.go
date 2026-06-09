@@ -64,6 +64,7 @@ type Server struct {
 	ghWrite    ghWriter      // GitHub write-client (F.3)
 	tg         auditor       // Telegram audit (F.3)
 	oneShot    oneShotRunner // host one-shot container runner (F.3)
+	deploys    *deployStore  // per-project async deploy status (F.4)
 }
 
 func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig) *Server {
@@ -82,6 +83,7 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 		sessions:   make(map[string]time.Time),
 	}
 	srv.projects = projects
+	srv.deploys = newDeployStore()
 	if len(srv.projects) > 0 {
 		srv.aggregator = &Aggregator{
 			gh:   &GitHubClient{Token: os.Getenv("GITHUB_READ_TOKEN")},
