@@ -34,7 +34,7 @@ func (f *fakeRunner) Run(_ context.Context, spec oneShotSpec) (string, int, erro
 func newDeployer(r oneShotRunner) *GnathologyDeployer {
 	return &GnathologyDeployer{
 		Runner:      r,
-		HostDir:     "/opt/apps/gnathology-bot/deploy",
+		HostDir:     "/opt/apps/gnathology-bot",
 		ComposeProj: "gnathology-bot",
 		Token:       "wtok",
 	}
@@ -55,7 +55,7 @@ func TestDeploySuccess(t *testing.T) {
 	if !contains(pull.Env, "GIT_TOKEN=wtok") {
 		t.Errorf("pull env = %v", pull.Env)
 	}
-	if !contains(pull.Binds, "/opt/apps/gnathology-bot/deploy:/repo") {
+	if !contains(pull.Binds, "/opt/apps/gnathology-bot:/repo") {
 		t.Errorf("pull binds = %v", pull.Binds)
 	}
 	if contains(pull.Binds, "/var/run/docker.sock:/var/run/docker.sock") {
@@ -74,6 +74,10 @@ func TestDeploySuccess(t *testing.T) {
 	}
 	if !strings.Contains(joined, "up -d --build") {
 		t.Errorf("compose cmd = %q", joined)
+	}
+	// compose.yml lives in the repo's deploy/ subdir, not the git root.
+	if !strings.Contains(joined, "-f /repo/deploy/compose.yml") {
+		t.Errorf("compose must reference deploy-subdir file: %q", joined)
 	}
 }
 

@@ -61,7 +61,8 @@ scheduler:
 # GITHUB_WRITE_TOKEN (fine-grained, both repos: contents+pull_requests+issues+actions:write).
 # Deploy mechanism per project — set exactly one of deploy_workflow / deploy_host_dir:
 #   deploy_workflow:        GitHub Actions workflow file to dispatch (ref=main)
-#   deploy_host_dir:        host path of a git working copy to pull + compose rebuild
+#   deploy_host_dir:        host path of the repo-root git working copy to pull +
+#                           compose rebuild (compose.yml is read from its deploy/ subdir)
 #   deploy_compose_project: compose -p name (MUST match the existing stack name)
 projects:
   pdai:
@@ -73,5 +74,5 @@ projects:
     repo: Meta-Psy/gnathology-bot
     agents: [gnatho-coder]
     health: http://gnathology-bot:8099/health
-    deploy_host_dir: /opt/apps/gnathology-bot/deploy
+    deploy_host_dir: /opt/apps/gnathology-bot
     deploy_compose_project: gnathology-bot

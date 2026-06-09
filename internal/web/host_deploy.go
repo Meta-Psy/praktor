@@ -8,7 +8,7 @@ import (
 const (
 	defaultGitImage     = "alpine/git"
 	defaultComposeImage = "docker:cli"
-	composeFile         = "/repo/compose.yml"
+	composeFile         = "/repo/deploy/compose.yml"
 	dockerSockBind      = "/var/run/docker.sock:/var/run/docker.sock"
 )
 
@@ -26,11 +26,13 @@ type oneShotRunner interface {
 }
 
 // GnathologyDeployer rebuilds the gnathology bot on the host: pull latest main,
-// then compose up --build. The deploy dir must already be a git working copy
-// (one-time [ALEX] setup) with .env and data/ gitignored.
+// then compose up --build. HostDir must be the repo ROOT as a git working copy
+// (one-time [ALEX] setup) with .env and data/ gitignored; compose.yml lives in
+// its deploy/ subdir and its build context (..) points back at the root for the
+// Dockerfile + src.
 type GnathologyDeployer struct {
 	Runner      oneShotRunner
-	HostDir     string // e.g. /opt/apps/gnathology-bot/deploy
+	HostDir     string // repo root, e.g. /opt/apps/gnathology-bot (git working copy)
 	ComposeProj string // e.g. gnathology-bot (must match existing stack)
 	Token       string // GitHub write PAT for the private pull
 }
