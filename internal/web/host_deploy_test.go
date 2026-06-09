@@ -52,6 +52,10 @@ func TestDeploySuccess(t *testing.T) {
 	if pull.Image != defaultGitImage {
 		t.Errorf("pull image = %q", pull.Image)
 	}
+	// alpine/git's entrypoint is "git"; must override to "sh" or it runs `git sh -c ...`.
+	if len(pull.Entrypoint) != 1 || pull.Entrypoint[0] != "sh" {
+		t.Errorf("pull entrypoint must be [sh], got %v", pull.Entrypoint)
+	}
 	if !contains(pull.Env, "GIT_TOKEN=wtok") {
 		t.Errorf("pull env = %v", pull.Env)
 	}
@@ -78,6 +82,10 @@ func TestDeploySuccess(t *testing.T) {
 	comp := r.calls[1]
 	if comp.Image != defaultComposeImage {
 		t.Errorf("compose image = %q", comp.Image)
+	}
+	// docker:cli's entrypoint is "docker-entrypoint.sh"; must override to "docker".
+	if len(comp.Entrypoint) != 1 || comp.Entrypoint[0] != "docker" {
+		t.Errorf("compose entrypoint must be [docker], got %v", comp.Entrypoint)
 	}
 	if !contains(comp.Binds, "/opt/apps/gnathology-bot:/opt/apps/gnathology-bot") {
 		t.Errorf("compose must same-path mount the repo: %v", comp.Binds)

@@ -37,9 +37,10 @@ func (d *dockerOneShot) Run(ctx context.Context, spec oneShotSpec) (string, int,
 	name := fmt.Sprintf("praktor-deploy-%d", time.Now().UnixNano())
 	resp, err := d.docker.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Config: &dockercontainer.Config{
-			Image: spec.Image,
-			Cmd:   spec.Cmd,
-			Env:   spec.Env,
+			Image:      spec.Image,
+			Entrypoint: spec.Entrypoint,
+			Cmd:        spec.Cmd,
+			Env:        spec.Env,
 		},
 		HostConfig: &dockercontainer.HostConfig{Binds: spec.Binds},
 		Name:       name,
