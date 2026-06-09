@@ -47,10 +47,13 @@ func (d *GnathologyDeployer) Deploy(ctx context.Context) error {
 	bind := d.HostDir + ":" + d.HostDir
 	composeFile := d.HostDir + "/deploy/compose.yml"
 
-	// 1) git pull --ff-only. Token via env, never in argv. safe.directory because the
-	//    one-shot runs as root while the working copy is owned by the deploy user.
+	// 1) git pull --ff-only. Token passed via env; the Basic header is built in-shell.
+	//    GitHub's git-over-HTTPS endpoint speaks HTTP Basic (username ignored for a
+	//    PAT, token as password) — NOT Bearer, which it rejects with a 401 and an
+	//    interactive credential prompt. safe.directory because the one-shot runs as
+	//    root while the working copy is owned by the deploy user.
 	pullCmd := `git -c safe.directory="` + d.HostDir + `"` +
-		` -c http.extraheader="AUTHORIZATION: bearer $GIT_TOKEN"` +
+		` -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' $GIT_TOKEN | base64 | tr -d '\n')"` +
 		` -C "` + d.HostDir + `" pull --ff-only`
 	logs, code, err := d.Runner.Run(ctx, oneShotSpec{
 		Image: defaultGitImage,

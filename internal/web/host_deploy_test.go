@@ -71,6 +71,10 @@ func TestDeploySuccess(t *testing.T) {
 	if !strings.Contains(pullCmd, "pull --ff-only") {
 		t.Errorf("pull cmd = %q", pullCmd)
 	}
+	// GitHub git-over-HTTPS takes Basic, not Bearer (Bearer -> 401 + credential prompt).
+	if !strings.Contains(pullCmd, "AUTHORIZATION: basic") || strings.Contains(pullCmd, "bearer") {
+		t.Errorf("pull must use Basic auth, not Bearer: %q", pullCmd)
+	}
 	comp := r.calls[1]
 	if comp.Image != defaultComposeImage {
 		t.Errorf("compose image = %q", comp.Image)
