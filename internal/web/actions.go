@@ -91,43 +91,74 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "unknown project", http.StatusNotFound)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 12*time.Minute)
-	defer cancel()
 
+	// Validate the deploy mechanism synchronously so a misconfigured project
+	// returns a 4xx now instead of getting stuck in a "running" state.
 	switch {
 	case def.DeployWorkflow != "":
-		detail := fmt.Sprintf("deploy %s (dispatch %s)", key, def.DeployWorkflow)
-		if err := s.ghWrite.DispatchWorkflow(ctx, def.Repo, def.DeployWorkflow, "main"); err != nil {
-			s.audit(false, detail+": "+err.Error())
-			jsonError(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		s.audit(true, detail)
-		jsonResponse(w, map[string]string{"status": "ok"})
-
+		// ok
 	case def.DeployHostDir != "":
 		if s.oneShot == nil {
 			jsonError(w, "host deploy unavailable (no docker)", http.StatusServiceUnavailable)
 			return
 		}
-		detail := fmt.Sprintf("deploy %s (host rebuild)", key)
-		dep := &GnathologyDeployer{
-			Runner:      s.oneShot,
-			HostDir:     def.DeployHostDir,
-			ComposeProj: def.DeployComposeProject,
-			Token:       s.writeToken(),
-		}
-		if err := dep.Deploy(ctx); err != nil {
-			s.audit(false, detail+": "+err.Error())
-			jsonError(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-		s.audit(true, detail)
-		jsonResponse(w, map[string]string{"status": "ok"})
-
 	default:
 		jsonError(w, "no deploy mechanism configured for project", http.StatusBadRequest)
+		return
 	}
+
+	// One deploy per project at a time.
+	if !s.deploys.tryStart(key) {
+		jsonError(w, "deploy already in progress", http.StatusConflict)
+		return
+	}
+
+	// Run the deploy in the background on a detached context so a client
+	// disconnect / Cloudflare edge timeout no longer cancels it. The TG audit
+	// and the deploy_run status in /api/projects are the completion signals.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+		defer cancel()
+		// Background goroutine has no per-request recover; a panic here would crash
+		// the whole process. Recover, mark the run failed (so it isn't stuck running),
+		// and audit.
+		defer func() {
+			if rec := recover(); rec != nil {
+				s.deploys.finish(key, fmt.Errorf("deploy panicked: %v", rec))
+				s.audit(false, fmt.Sprintf("deploy %s panicked: %v", key, rec))
+			}
+		}()
+
+		var (
+			detail string
+			err    error
+		)
+		switch {
+		case def.DeployWorkflow != "":
+			detail = fmt.Sprintf("deploy %s (dispatch %s)", key, def.DeployWorkflow)
+			err = s.ghWrite.DispatchWorkflow(ctx, def.Repo, def.DeployWorkflow, "main")
+		case def.DeployHostDir != "":
+			detail = fmt.Sprintf("deploy %s (host rebuild)", key)
+			dep := &GnathologyDeployer{
+				Runner:      s.oneShot,
+				HostDir:     def.DeployHostDir,
+				ComposeProj: def.DeployComposeProject,
+				Token:       s.writeToken(),
+			}
+			err = dep.Deploy(ctx)
+		}
+
+		s.deploys.finish(key, err)
+		if err != nil {
+			s.audit(false, detail+": "+err.Error())
+		} else {
+			s.audit(true, detail)
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "started"})
 }
 
 // writeToken exposes the write PAT to the host deployer (private pull).

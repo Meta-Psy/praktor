@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mtzanidakis/praktor/internal/config"
 )
@@ -39,11 +40,36 @@ func testServer(gh ghWriter, aud auditor, run oneShotRunner) *Server {
 		ghWrite: gh,
 		tg:      aud,
 		oneShot: run,
+		deploys: newDeployStore(),
 		projects: map[string]config.ProjectDefinition{
 			"pdai":       {Repo: "Meta-Psy/pdai_calculator", DeployWorkflow: "deploy.yml"},
 			"gnathology": {Repo: "Meta-Psy/gnathology-bot", DeployHostDir: "/opt/apps/gnathology-bot/deploy", DeployComposeProject: "gnathology-bot"},
+			"bare":       {Repo: "Meta-Psy/bare"},
 		},
 	}
+}
+
+// waitDeploy polls until project key reaches the wanted deploy state (or fails the test).
+func waitDeploy(t *testing.T, s *Server, key, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for s.deploys.snapshot(key).State != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("deploy %s state = %q, want %q", key, s.deploys.snapshot(key).State, want)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// blockingRunner hangs each Run until released, so a test can observe the
+// "running" window and the 409 guard.
+type blockingRunner struct {
+	release chan struct{}
+}
+
+func (b *blockingRunner) Run(_ context.Context, _ oneShotSpec) (string, int, error) {
+	<-b.release
+	return "", 0, nil
 }
 
 func do(t *testing.T, s *Server, method, path, body string, h http.HandlerFunc) *httptest.ResponseRecorder {
@@ -94,9 +120,10 @@ func TestHandleDeployPdaiDispatches(t *testing.T) {
 	gh, aud := &fakeGHWriter{}, &fakeAuditor{}
 	s := testServer(gh, aud, nil)
 	rec := do(t, s, http.MethodPost, "/api/projects/pdai/deploy", ``, s.handleDeploy)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("code = %d (%s), want 202", rec.Code, rec.Body)
 	}
+	waitDeploy(t, s, "pdai", "ok")
 	if gh.dispatched != "deploy.yml" {
 		t.Errorf("dispatched = %q", gh.dispatched)
 	}
@@ -107,11 +134,43 @@ func TestHandleDeployGnathologyUsesRunner(t *testing.T) {
 	run := &fakeRunner{exit: []int{0, 0}}
 	s := testServer(gh, aud, run)
 	rec := do(t, s, http.MethodPost, "/api/projects/gnathology/deploy", ``, s.handleDeploy)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("code = %d (%s), want 202", rec.Code, rec.Body)
 	}
+	waitDeploy(t, s, "gnathology", "ok")
 	if len(run.calls) != 2 {
 		t.Errorf("want 2 container runs, got %d", len(run.calls))
+	}
+}
+
+func TestHandleDeployGuardsConcurrent(t *testing.T) {
+	gh, aud := &fakeGHWriter{}, &fakeAuditor{}
+	run := &blockingRunner{release: make(chan struct{})}
+	s := testServer(gh, aud, run)
+
+	// First deploy returns 202 and blocks in the runner.
+	if rec := do(t, s, http.MethodPost, "/api/projects/gnathology/deploy", ``, s.handleDeploy); rec.Code != http.StatusAccepted {
+		t.Fatalf("first deploy code = %d, want 202", rec.Code)
+	}
+	waitDeploy(t, s, "gnathology", "running")
+
+	// Second deploy while running → 409.
+	if rec := do(t, s, http.MethodPost, "/api/projects/gnathology/deploy", ``, s.handleDeploy); rec.Code != http.StatusConflict {
+		t.Fatalf("concurrent deploy code = %d, want 409", rec.Code)
+	}
+
+	close(run.release)
+	waitDeploy(t, s, "gnathology", "ok")
+}
+
+func TestHandleDeployNoMechanism(t *testing.T) {
+	s := testServer(&fakeGHWriter{}, &fakeAuditor{}, nil)
+	rec := do(t, s, http.MethodPost, "/api/projects/bare/deploy", ``, s.handleDeploy)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d, want 400", rec.Code)
+	}
+	if s.deploys.snapshot("bare").State != "" {
+		t.Error("misconfigured project must not enter running state")
 	}
 }
 
