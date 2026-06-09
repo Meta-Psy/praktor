@@ -103,14 +103,14 @@ func TestOverlayDeployRuns(t *testing.T) {
 		{Name: "gnathology", Repo: "x/g"},
 	}
 	out := overlayDeployRuns(data, d)
-	if out[0].DeployRun.State != "running" {
-		t.Fatalf("pdai deploy_run = %q, want running", out[0].DeployRun.State)
+	if out[0].DeployRun == nil || out[0].DeployRun.State != "running" {
+		t.Fatalf("pdai deploy_run = %v, want running", out[0].DeployRun)
 	}
-	if out[1].DeployRun.State != "" {
-		t.Fatalf("gnathology deploy_run = %q, want empty", out[1].DeployRun.State)
+	if out[1].DeployRun != nil {
+		t.Fatalf("gnathology deploy_run = %v, want nil (never run)", out[1].DeployRun)
 	}
 	// The input slice (which may be the shared cache) must NOT be mutated.
-	if data[0].DeployRun.State != "" {
+	if data[0].DeployRun != nil {
 		t.Fatal("overlay must not mutate the input (cached) slice")
 	}
 }

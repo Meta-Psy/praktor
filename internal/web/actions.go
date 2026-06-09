@@ -119,6 +119,15 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 		defer cancel()
+		// Background goroutine has no per-request recover; a panic here would crash
+		// the whole process. Recover, mark the run failed (so it isn't stuck running),
+		// and audit.
+		defer func() {
+			if rec := recover(); rec != nil {
+				s.deploys.finish(key, fmt.Errorf("deploy panicked: %v", rec))
+				s.audit(false, fmt.Sprintf("deploy %s panicked: %v", key, rec))
+			}
+		}()
 
 		var (
 			detail string
