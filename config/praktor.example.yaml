@@ -55,3 +55,23 @@ speech:
 
 scheduler:
   poll_interval: 30s
+
+# Mission Control cross-project roll-up + actions (F.2/F.3).
+# Read aggregation uses env GITHUB_READ_TOKEN; approve/merge/deploy use env
+# GITHUB_WRITE_TOKEN (fine-grained, both repos: contents+pull_requests+issues+actions:write).
+# Deploy mechanism per project — set exactly one of deploy_workflow / deploy_host_dir:
+#   deploy_workflow:        GitHub Actions workflow file to dispatch (ref=main)
+#   deploy_host_dir:        host path of a git working copy to pull + compose rebuild
+#   deploy_compose_project: compose -p name (MUST match the existing stack name)
+projects:
+  pdai:
+    repo: Meta-Psy/pdai_calculator
+    agents: [coder, notifier]
+    deploy_url: https://skinlabpro.uz
+    deploy_workflow: deploy.yml
+  gnathology:
+    repo: Meta-Psy/gnathology-bot
+    agents: [gnatho-coder]
+    health: http://gnathology-bot:8099/health
+    deploy_host_dir: /opt/apps/gnathology-bot/deploy
+    deploy_compose_project: gnathology-bot
