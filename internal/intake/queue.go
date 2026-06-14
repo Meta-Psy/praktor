@@ -101,6 +101,9 @@ func (q *Queue) Put(ctx context.Context, it Item) error {
 // Update overwrites items/<id>.json carrying sha (optimistic concurrency); a
 // stale sha makes the Contents API reject the write.
 func (q *Queue) Update(ctx context.Context, it Item, sha string) error {
+	if sha == "" {
+		return fmt.Errorf("intake.Queue.Update: sha must not be empty")
+	}
 	data, err := json.MarshalIndent(it, "", "  ")
 	if err != nil {
 		return err

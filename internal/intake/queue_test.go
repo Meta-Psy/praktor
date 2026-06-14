@@ -85,10 +85,12 @@ func TestQueuePutMediaEscapesName(t *testing.T) {
 
 func TestQueueUpdateSendsSHA(t *testing.T) {
 	var gotBody map[string]any
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
 			t.Errorf("method = %s", r.Method)
 		}
+		gotPath = r.URL.Path
 		b, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(b, &gotBody)
 		w.WriteHeader(http.StatusOK) // update → 200
@@ -99,6 +101,9 @@ func TestQueueUpdateSendsSHA(t *testing.T) {
 	it := Item{ID: "id1", Status: StatusApproved}
 	if err := q.Update(context.Background(), it, "sha-abc"); err != nil {
 		t.Fatal(err)
+	}
+	if gotPath != "/repos/o/r/contents/items/id1.json" {
+		t.Errorf("path = %s", gotPath)
 	}
 	if gotBody["sha"] != "sha-abc" {
 		t.Fatalf("sha in body = %v, want sha-abc", gotBody["sha"])
