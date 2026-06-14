@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -32,7 +32,7 @@ func (f *fakeIntakeFetcher) GetFileContent(_ context.Context, _, path string) ([
 	}
 	b, ok := f.files[path]
 	if !ok {
-		return nil, errors.New("not found: " + path)
+		return nil, fmt.Errorf("not found: %s %w", path, ErrNotFound)
 	}
 	return b, nil
 }
@@ -199,7 +199,7 @@ func TestHandleIntakePlan(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
 	}
-	if !strings.Contains(rec.Body.String(), "# Plan") {
+	if rec.Body.String() != "# Plan\n\n- step one\n" {
 		t.Fatalf("body = %q", rec.Body.String())
 	}
 }
@@ -231,5 +231,37 @@ func TestIntakeReaderGetItem(t *testing.T) {
 	}
 	if sha == "" {
 		t.Fatal("expected non-empty sha")
+	}
+}
+
+func TestHandleIntakePlanUnconfigured(t *testing.T) {
+	s := &Server{}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/x/plan", nil)
+	req.SetPathValue("id", "x")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code = %d, want 503", rec.Code)
+	}
+}
+
+type errFetcher struct{}
+
+func (errFetcher) ListDir(_ context.Context, _, _ string) ([]string, error) { return nil, nil }
+func (errFetcher) GetFileContent(_ context.Context, _, _ string) ([]byte, error) {
+	return nil, fmt.Errorf("boom: rate limited")
+}
+func (errFetcher) GetFileWithSHA(_ context.Context, _, _ string) ([]byte, string, error) {
+	return nil, "", fmt.Errorf("boom: rate limited")
+}
+
+func TestHandleIntakePlanUpstreamError502(t *testing.T) {
+	s := &Server{intake: &intakeReader{gh: errFetcher{}, repo: "r/q"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/id1/plan", nil)
+	req.SetPathValue("id", "id1")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("code = %d, want 502", rec.Code)
 	}
 }

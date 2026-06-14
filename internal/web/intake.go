@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	pathpkg "path"
@@ -124,7 +125,11 @@ func (s *Server) handleIntakePlan(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	md, err := s.intake.gh.GetFileContent(ctx, s.intake.repo, "items/"+id+".plan.md")
 	if err != nil {
-		jsonError(w, "plan not found", http.StatusNotFound)
+		if errors.Is(err, ErrNotFound) {
+			jsonError(w, "plan not found", http.StatusNotFound)
+			return
+		}
+		jsonError(w, "upstream error: "+err.Error(), http.StatusBadGateway)
 		return
 	}
 	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")

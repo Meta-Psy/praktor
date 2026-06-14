@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
+
+// ErrNotFound is returned by read methods when the GitHub API responds 404
+// (the resource genuinely does not exist), distinct from transient errors.
+var ErrNotFound = errors.New("github: not found")
 
 // GitHubClient is a minimal read-only GitHub REST client for the MC roll-up.
 type GitHubClient struct {
@@ -68,6 +73,9 @@ func (c *GitHubClient) get(ctx context.Context, path string, out any) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("github %s: %w", path, ErrNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("github %s: %s", path, resp.Status)
 	}
