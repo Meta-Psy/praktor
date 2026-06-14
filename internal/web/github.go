@@ -89,6 +89,45 @@ func (c *GitHubClient) GetFileContent(ctx context.Context, repo, path string) ([
 	return base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
 }
 
+// ListDir returns repo-relative paths of files (type=="file") directly under
+// dir via the contents API. A missing directory (404) yields an empty slice,
+// not an error, so an empty queue is not a failure.
+func (c *GitHubClient) ListDir(ctx context.Context, repo, dir string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base()+"/repos/"+repo+"/contents/"+dir, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github listdir %s: %s", dir, resp.Status)
+	}
+	var entries []struct {
+		Path string `json:"path"`
+		Type string `json:"type"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.Type == "file" {
+			out = append(out, e.Path)
+		}
+	}
+	return out, nil
+}
+
 // OpenPRs returns open pull requests for owner/name.
 func (c *GitHubClient) OpenPRs(ctx context.Context, repo string) ([]PRInfo, error) {
 	var raw []struct {

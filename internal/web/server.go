@@ -17,9 +17,11 @@ import (
 
 	"github.com/mtzanidakis/praktor/internal/agent"
 	"github.com/mtzanidakis/praktor/internal/config"
+	"github.com/mtzanidakis/praktor/internal/intake"
 	"github.com/mtzanidakis/praktor/internal/natsbus"
 	"github.com/mtzanidakis/praktor/internal/registry"
 	"github.com/mtzanidakis/praktor/internal/router"
+	"github.com/mtzanidakis/praktor/internal/speech"
 	"github.com/mtzanidakis/praktor/internal/store"
 	"github.com/mtzanidakis/praktor/internal/swarm"
 	"github.com/mtzanidakis/praktor/internal/vault"
@@ -68,6 +70,12 @@ type Server struct {
 
 	portfolio      *portfolioReader // S1 portfolio data-repo reader
 	portfolioCache *portfolioCache  // S1 portfolio cache
+
+	intake      *intakeReader // S2 intake queue reader
+	intakeCache *intakeCache  // S2 intake cache
+	intakeQueue intakeWriter  // S2 queue writer (web POST)
+	transcriber transcriber   // S2 STT for web voice
+	intakeRepo  string        // S2 INTAKE_QUEUE_REPO
 }
 
 func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig) *Server {
@@ -108,6 +116,18 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 			path: "portfolio.json",
 		}
 		srv.portfolioCache = &portfolioCache{ttl: 60 * time.Second}
+	}
+	if repo := os.Getenv("INTAKE_QUEUE_REPO"); repo != "" {
+		srv.intakeRepo = repo
+		srv.intake = &intakeReader{
+			gh:   &GitHubClient{Token: os.Getenv("GITHUB_READ_TOKEN")},
+			repo: repo,
+		}
+		srv.intakeCache = &intakeCache{ttl: 30 * time.Second}
+		srv.intakeQueue = &intake.Queue{Token: os.Getenv("GITHUB_WRITE_TOKEN"), Repo: repo}
+		if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+			srv.transcriber = speech.NewClient(key)
+		}
 	}
 	return srv
 }
