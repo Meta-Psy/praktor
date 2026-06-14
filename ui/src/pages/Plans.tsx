@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { awaitingPlans, type PlanItem } from './planStatus';
@@ -31,14 +31,26 @@ function Plans() {
   }, []);
   useEffect(() => { fetchList(); }, [fetchList]);
 
+  const activeId = useRef<string | null>(null);
+
   const openPlan = useCallback((id: string) => {
-    if (openId === id) { setOpenId(null); return; }
+    if (openId === id) { setOpenId(null); activeId.current = null; return; }
     setOpenId(id);
+    activeId.current = id;
     setPlanHtml('');
     fetch(`/api/intake/${id}/plan`)
       .then((res) => (res.ok ? res.text() : Promise.reject(new Error('no plan'))))
-      .then((md) => setPlanHtml(DOMPurify.sanitize(marked.parse(md) as string)))
-      .catch(() => setPlanHtml('<p>План недоступен.</p>'));
+      .then((md) => {
+        if (activeId.current !== id) return; // a newer card was opened; ignore
+        const html = DOMPurify.sanitize(marked.parse(md, { async: false }), {
+          ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li',
+            'code', 'pre', 'strong', 'em', 'del', 'a', 'blockquote', 'hr', 'br',
+            'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+          ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+        });
+        setPlanHtml(html);
+      })
+      .catch(() => { if (activeId.current === id) setPlanHtml('<p>План недоступен.</p>'); });
   }, [openId]);
 
   const doAction = useCallback(async () => {
@@ -78,17 +90,17 @@ function Plans() {
             <>
               <div
                 style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}
-                dangerouslySetInnerHTML={{ __html: planHtml }}
+                dangerouslySetInnerHTML={{ __html: planHtml || '<p style="color:var(--text-secondary)">Загрузка…</p>' }}
               />
               <div style={{ marginTop: 12 }}>
                 <button
-                  style={{ ...btn, background: 'var(--accent, #0F8B5C)', color: '#fff' }}
+                  style={{ ...btn, background: 'var(--accent)', color: '#fff' }}
                   onClick={() => setConfirm({ id: it.id, action: 'approve' })}
                 >
-                  Approve
+                  Одобрить
                 </button>
                 <button style={btn} onClick={() => setConfirm({ id: it.id, action: 'reject' })}>
-                  Reject
+                  Отклонить
                 </button>
               </div>
             </>
@@ -98,6 +110,8 @@ function Plans() {
 
       {confirm && (
         <div
+          role="dialog"
+          aria-modal={true}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
@@ -118,10 +132,10 @@ function Plans() {
               />
             )}
             <div>
-              <button style={{ ...btn, background: 'var(--accent, #0F8B5C)', color: '#fff' }} disabled={busy} onClick={doAction}>
+              <button style={{ ...btn, background: 'var(--accent)', color: '#fff' }} disabled={busy} onClick={doAction}>
                 {busy ? '…' : 'Подтвердить'}
               </button>
-              <button style={btn} disabled={busy} onClick={() => { setConfirm(null); setReason(''); }}>
+              <button style={btn} disabled={busy} onClick={() => { setConfirm(null); setReason(''); setMsg(null); }}>
                 Отмена
               </button>
             </div>
