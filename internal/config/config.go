@@ -20,6 +20,7 @@ type Config struct {
 	Vault     VaultConfig                  `yaml:"vault"`
 	AgentMail AgentMailConfig              `yaml:"agentmail"`
 	Speech    SpeechConfig                 `yaml:"speech"`
+	Intake    IntakeConfig                 `yaml:"intake"`
 	Projects  map[string]ProjectDefinition `yaml:"projects"`
 }
 
@@ -45,6 +46,12 @@ type SpeechConfig struct {
 	TTSEnabled bool   `yaml:"tts_enabled"`
 	TTSMode    string `yaml:"tts_mode"`
 	TTSVoice   string `yaml:"tts_voice"`
+}
+
+// IntakeConfig configures the S2 intake Telegram poller. Its token is separate
+// from Telegram.Token so the full orchestrator bot stays disabled.
+type IntakeConfig struct {
+	TelegramToken string `yaml:"telegram_token"`
 }
 
 type VaultConfig struct {
@@ -224,5 +231,8 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("OPENAI_API_KEY"); v != "" {
 		cfg.Speech.APIKey = v
+	}
+	if v := os.Getenv("INTAKE_TELEGRAM_TOKEN"); v != "" {
+		cfg.Intake.TelegramToken = v
 	}
 }

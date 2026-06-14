@@ -243,6 +243,15 @@ router:
 	}
 }
 
+func TestApplyEnvIntakeToken(t *testing.T) {
+	t.Setenv("INTAKE_TELEGRAM_TOKEN", "123:abc")
+	cfg := &Config{}
+	applyEnv(cfg)
+	if cfg.Intake.TelegramToken != "123:abc" {
+		t.Fatalf("intake token = %q", cfg.Intake.TelegramToken)
+	}
+}
+
 func TestProjectsParse(t *testing.T) {
 	yaml := `
 projects:
