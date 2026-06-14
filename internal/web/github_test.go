@@ -94,3 +94,40 @@ func TestGitHubLatestCI(t *testing.T) {
 		t.Fatalf("got %+v", ci)
 	}
 }
+
+func TestListDir(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/r/q/contents/items" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[
+			{"name":"a.json","path":"items/a.json","type":"file"},
+			{"name":"b.json","path":"items/b.json","type":"file"},
+			{"name":"sub","path":"items/sub","type":"dir"}
+		]`))
+	}))
+	defer srv.Close()
+	c := &GitHubClient{Token: "t", BaseURL: srv.URL, HTTP: srv.Client()}
+	paths, err := c.ListDir(context.Background(), "r/q", "items")
+	if err != nil {
+		t.Fatalf("ListDir: %v", err)
+	}
+	if len(paths) != 2 || paths[0] != "items/a.json" || paths[1] != "items/b.json" {
+		t.Fatalf("paths = %v", paths)
+	}
+}
+
+func TestListDirMissingIsEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	c := &GitHubClient{Token: "t", BaseURL: srv.URL, HTTP: srv.Client()}
+	paths, err := c.ListDir(context.Background(), "r/q", "items")
+	if err != nil {
+		t.Fatalf("ListDir on 404 should be empty, got err: %v", err)
+	}
+	if len(paths) != 0 {
+		t.Fatalf("paths = %v, want empty", paths)
+	}
+}

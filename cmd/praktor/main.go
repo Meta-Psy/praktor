@@ -14,6 +14,7 @@ import (
 	"github.com/mtzanidakis/praktor/internal/agentmail"
 	"github.com/mtzanidakis/praktor/internal/config"
 	"github.com/mtzanidakis/praktor/internal/container"
+	"github.com/mtzanidakis/praktor/internal/intake"
 	"github.com/mtzanidakis/praktor/internal/natsbus"
 	"github.com/mtzanidakis/praktor/internal/registry"
 	"github.com/mtzanidakis/praktor/internal/router"
@@ -153,6 +154,24 @@ func runGateway() error {
 		slog.Warn("telegram token not set, bot disabled")
 	}
 
+	// S2 intake poller — separate token; the full orchestrator bot above stays
+	// disabled. Requires the queue repo + write token + (for voice) OpenAI key.
+	if cfg.Intake.TelegramToken != "" {
+		queueRepo := os.Getenv("INTAKE_QUEUE_REPO")
+		writeToken := os.Getenv("GITHUB_WRITE_TOKEN")
+		if queueRepo == "" || writeToken == "" {
+			slog.Warn("intake poller disabled: INTAKE_QUEUE_REPO or GITHUB_WRITE_TOKEN not set")
+		} else {
+			q := &intake.Queue{Token: writeToken, Repo: queueRepo}
+			poller, err := intake.NewPoller(cfg.Intake.TelegramToken, speechClient, q, cfg.Telegram.AllowFrom)
+			if err != nil {
+				return fmt.Errorf("init intake poller: %w", err)
+			}
+			go func() { _ = poller.Start(ctx) }()
+			slog.Info("intake poller started")
+		}
+	}
+
 	// AgentMail
 	if cfg.AgentMail.APIKey != "" {
 		orch.SetAgentMailAPIKey(cfg.AgentMail.APIKey)
@@ -163,7 +182,7 @@ func runGateway() error {
 
 	// Web UI
 	if cfg.Web.Enabled {
-		srv := web.NewServer(db, bus, orch, reg, rtr, swarmCoord, cfg.Web, v, version, cfg.Projects, cfg.Telegram)
+		srv := web.NewServer(db, bus, orch, reg, rtr, swarmCoord, cfg.Web, v, version, cfg.Projects, cfg.Telegram, cfg.Speech)
 		go func() {
 			if err := srv.Start(ctx); err != nil {
 				slog.Error("web server error", "error", err)
