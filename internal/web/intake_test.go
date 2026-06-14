@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,6 +183,35 @@ func TestHandleIntakeCreateEmpty400(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleIntakeCreate(rec, req)
 	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("code = %d", rec.Code)
+	}
+}
+
+func TestHandleIntakePlan(t *testing.T) {
+	f := &fakeIntakeFetcher{files: map[string][]byte{
+		"items/id1.plan.md": []byte("# Plan\n\n- step one\n"),
+	}}
+	s := &Server{intake: &intakeReader{gh: f, repo: "r/q"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/id1/plan", nil)
+	req.SetPathValue("id", "id1")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), "# Plan") {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+func TestHandleIntakePlanMissing404(t *testing.T) {
+	f := &fakeIntakeFetcher{files: map[string][]byte{}}
+	s := &Server{intake: &intakeReader{gh: f, repo: "r/q"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/nope/plan", nil)
+	req.SetPathValue("id", "nope")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusNotFound {
 		t.Fatalf("code = %d", rec.Code)
 	}
 }

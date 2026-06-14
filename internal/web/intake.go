@@ -112,6 +112,25 @@ func (c *intakeCache) get(read func(context.Context) ([]intake.Item, error)) int
 	return intakeResponse{Items: items}
 }
 
+// handleIntakePlan is GET /api/intake/{id}/plan — returns the plan markdown for
+// an awaiting-approval item. Plan lives at items/<id>.plan.md by convention.
+func (s *Server) handleIntakePlan(w http.ResponseWriter, r *http.Request) {
+	if s.intake == nil {
+		jsonError(w, "intake not configured", http.StatusServiceUnavailable)
+		return
+	}
+	id := r.PathValue("id")
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	md, err := s.intake.gh.GetFileContent(ctx, s.intake.repo, "items/"+id+".plan.md")
+	if err != nil {
+		jsonError(w, "plan not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	_, _ = w.Write(md)
+}
+
 // handleIntakeList is GET /api/intake.
 func (s *Server) handleIntakeList(w http.ResponseWriter, r *http.Request) {
 	if s.intake == nil || s.intakeCache == nil {

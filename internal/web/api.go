@@ -82,6 +82,7 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	// Intake & triage (S2)
 	mux.HandleFunc("POST /api/intake", s.handleIntakeCreate)
 	mux.HandleFunc("GET /api/intake", s.handleIntakeList)
+	mux.HandleFunc("GET /api/intake/{id}/plan", s.handleIntakePlan)
 
 	// System
 	mux.HandleFunc("GET /api/status", s.getStatus)
