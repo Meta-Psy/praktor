@@ -130,6 +130,7 @@ type transcriber interface {
 type intakeWriter interface {
 	Put(ctx context.Context, it intake.Item) error
 	PutMedia(ctx context.Context, id, name string, data []byte) (string, error)
+	Update(ctx context.Context, it intake.Item, sha string) error
 }
 
 const intakeMaxUpload = 12 << 20 // 12 MiB

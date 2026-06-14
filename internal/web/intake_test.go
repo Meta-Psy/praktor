@@ -93,8 +93,9 @@ func TestHandleIntakeListUnconfigured(t *testing.T) {
 }
 
 type fakeQueue struct {
-	put   *intake.Item
-	media []string
+	put        *intake.Item
+	media      []string
+	updatedSHA string
 }
 
 func (f *fakeQueue) Put(_ context.Context, it intake.Item) error { f.put = &it; return nil }
@@ -102,6 +103,11 @@ func (f *fakeQueue) PutMedia(_ context.Context, id, name string, _ []byte) (stri
 	p := "items/" + id + "/" + name
 	f.media = append(f.media, p)
 	return p, nil
+}
+func (f *fakeQueue) Update(_ context.Context, it intake.Item, sha string) error {
+	f.put = &it
+	f.updatedSHA = sha
+	return nil
 }
 
 type fakeTranscriber struct{ text string }
