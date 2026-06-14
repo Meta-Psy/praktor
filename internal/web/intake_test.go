@@ -98,6 +98,7 @@ type fakeQueue struct {
 	updated    *intake.Item
 	media      []string
 	updatedSHA string
+	updateErr  error
 }
 
 func (f *fakeQueue) Put(_ context.Context, it intake.Item) error { f.put = &it; return nil }
@@ -107,6 +108,9 @@ func (f *fakeQueue) PutMedia(_ context.Context, id, name string, _ []byte) (stri
 	return p, nil
 }
 func (f *fakeQueue) Update(_ context.Context, it intake.Item, sha string) error {
+	if f.updateErr != nil {
+		return f.updateErr
+	}
 	f.updated = &it
 	f.updatedSHA = sha
 	return nil

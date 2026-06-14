@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -78,5 +79,36 @@ func TestHandleIntakeTransitionUnconfigured503(t *testing.T) {
 	s.handleIntakeApprove(rec, req)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("code = %d, want 503", rec.Code)
+	}
+}
+
+func TestHandleIntakeApproveAuditsSuccess(t *testing.T) {
+	s, _ := planServer(`{"id":"id1","source":"web","raw_text":"x","status":"awaiting-approval","created_at":"2026-06-15T10:00:00Z","updated_at":"2026-06-15T10:00:00Z"}`)
+	aud := &fakeAuditor{}
+	s.tg = aud
+	req := httptest.NewRequest(http.MethodPost, "/api/intake/id1/approve", nil)
+	req.SetPathValue("id", "id1")
+	s.handleIntakeApprove(httptest.NewRecorder(), req)
+	if !strings.Contains(aud.last, "approved") || !strings.Contains(aud.last, "id1") {
+		t.Fatalf("audit = %q", aud.last)
+	}
+}
+
+func TestHandleIntakeApproveWriteFailure502(t *testing.T) {
+	f := &fakeIntakeFetcher{files: map[string][]byte{
+		"items/id1.json": []byte(`{"id":"id1","source":"web","raw_text":"x","status":"awaiting-approval","created_at":"2026-06-15T10:00:00Z","updated_at":"2026-06-15T10:00:00Z"}`),
+	}}
+	q := &fakeQueue{updateErr: errors.New("github put failed")}
+	aud := &fakeAuditor{}
+	s := &Server{intake: &intakeReader{gh: f, repo: "r/q"}, intakeQueue: q, tg: aud}
+	req := httptest.NewRequest(http.MethodPost, "/api/intake/id1/approve", nil)
+	req.SetPathValue("id", "id1")
+	rec := httptest.NewRecorder()
+	s.handleIntakeApprove(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("code = %d, want 502", rec.Code)
+	}
+	if !strings.Contains(aud.last, "❌") {
+		t.Fatalf("expected failure audit, got %q", aud.last)
 	}
 }

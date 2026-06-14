@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -23,6 +24,8 @@ func (s *Server) handleIntakeReject(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Reason string `json:"reason"`
 	}
+	// Reason is optional; a malformed/empty body yields an empty reason and the
+	// reject still proceeds (no ReviewNote recorded).
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	s.transitionItem(w, r, intake.StatusNeedsDesign, body.Reason)
 }
@@ -51,12 +54,13 @@ func (s *Server) transitionItem(w http.ResponseWriter, r *http.Request, to, reas
 		jsonError(w, "invalid transition from "+it.Status+" to "+to, http.StatusConflict)
 		return
 	}
+	from := it.Status
 	it.Status = to
 	it.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 	if reason != "" {
 		it.ReviewNote = reason
 	}
-	detail := to + " " + id
+	detail := fmt.Sprintf("%s→%s %s", from, to, id)
 	if err := s.intakeQueue.Update(ctx, it, sha); err != nil {
 		// A stale SHA (concurrent edit) or upstream failure lands here; the UI
 		// refetches the list on any non-2xx, so it self-corrects.
