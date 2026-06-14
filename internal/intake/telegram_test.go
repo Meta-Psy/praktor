@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/mymmrac/telego"
 )
 
 type capturingQueue struct{ last *Item }
@@ -39,5 +41,28 @@ func TestBuildItemWithMedia(t *testing.T) {
 	}
 	if q.last.TargetProject != "histology" {
 		t.Fatalf("project = %q", q.last.TargetProject)
+	}
+}
+
+func TestHandleRejectsUnauthorizedSender(t *testing.T) {
+	// With an allowlist set, a message with no sender (From==nil) and a message
+	// from an unlisted sender must both be dropped before any queue write.
+	q := &capturingQueue{}
+	p := &Poller{
+		queue:    q,
+		allow:    map[int64]bool{42: true},
+		now:      func() time.Time { return time.Unix(0, 0).UTC() },
+		idSuffix: func() string { return "x" },
+	}
+	chat := telego.Chat{ID: 5}
+
+	p.handle(context.Background(), telego.Message{Chat: chat, Text: "anon"})
+	if q.last != nil {
+		t.Fatalf("nil-sender message should be rejected, got %+v", q.last)
+	}
+
+	p.handle(context.Background(), telego.Message{Chat: chat, From: &telego.User{ID: 7}, Text: "stranger"})
+	if q.last != nil {
+		t.Fatalf("unlisted sender should be rejected, got %+v", q.last)
 	}
 }

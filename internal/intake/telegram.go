@@ -90,8 +90,12 @@ func (p *Poller) downloadFile(ctx context.Context, fileID string) ([]byte, error
 
 // handle turns one message into an intake Item. Voice → STT; photo → media.
 func (p *Poller) handle(ctx context.Context, msg telego.Message) {
-	if len(p.allow) > 0 && msg.From != nil && !p.allow[msg.From.ID] {
-		return
+	if len(p.allow) > 0 {
+		// Reject when a sender allowlist is set and the message has no
+		// identifiable sender (channel/anonymous) or is not on the list.
+		if msg.From == nil || !p.allow[msg.From.ID] {
+			return
+		}
 	}
 	text := msg.Text
 	if text == "" {
