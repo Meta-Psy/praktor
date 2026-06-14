@@ -20,6 +20,7 @@ import (
 type intakeFetcher interface {
 	ListDir(ctx context.Context, repo, dir string) ([]string, error)
 	GetFileContent(ctx context.Context, repo, path string) ([]byte, error)
+	GetFileWithSHA(ctx context.Context, repo, path string) ([]byte, string, error)
 }
 
 type intakeReader struct {
@@ -47,6 +48,19 @@ func (r *intakeReader) list(ctx context.Context) ([]intake.Item, error) {
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt > items[j].CreatedAt })
 	return items, nil
+}
+
+// getItem fetches one queue item plus its blob SHA, for status transitions.
+func (r *intakeReader) getItem(ctx context.Context, id string) (intake.Item, string, error) {
+	raw, sha, err := r.gh.GetFileWithSHA(ctx, r.repo, "items/"+id+".json")
+	if err != nil {
+		return intake.Item{}, "", err
+	}
+	var it intake.Item
+	if err := json.Unmarshal(raw, &it); err != nil {
+		return intake.Item{}, "", err
+	}
+	return it, sha, nil
 }
 
 type intakeResponse struct {

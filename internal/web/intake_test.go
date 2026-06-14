@@ -29,7 +29,18 @@ func (f *fakeIntakeFetcher) GetFileContent(_ context.Context, _, path string) ([
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.files[path], nil
+	b, ok := f.files[path]
+	if !ok {
+		return nil, errors.New("not found: " + path)
+	}
+	return b, nil
+}
+func (f *fakeIntakeFetcher) GetFileWithSHA(_ context.Context, _, path string) ([]byte, string, error) {
+	b, err := f.GetFileContent(context.Background(), "", path)
+	if err != nil {
+		return nil, "", err
+	}
+	return b, "sha-" + path, nil
 }
 
 func TestIntakeReaderSortsNewestFirst(t *testing.T) {
@@ -165,5 +176,23 @@ func TestHandleIntakeCreateEmpty400(t *testing.T) {
 	s.handleIntakeCreate(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("code = %d", rec.Code)
+	}
+}
+
+func TestIntakeReaderGetItem(t *testing.T) {
+	item := `{"id":"20260615T100000Z-ab12","source":"web","raw_text":"build X","status":"awaiting-approval","created_at":"2026-06-15T10:00:00Z","updated_at":"2026-06-15T10:00:00Z"}`
+	f := &fakeIntakeFetcher{files: map[string][]byte{
+		"items/20260615T100000Z-ab12.json": []byte(item),
+	}}
+	r := &intakeReader{gh: f, repo: "r/q"}
+	it, sha, err := r.getItem(context.Background(), "20260615T100000Z-ab12")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.Status != "awaiting-approval" || it.RawText != "build X" {
+		t.Fatalf("item = %+v", it)
+	}
+	if sha == "" {
+		t.Fatal("expected non-empty sha")
 	}
 }

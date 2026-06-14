@@ -89,6 +89,24 @@ func (c *GitHubClient) GetFileContent(ctx context.Context, repo, path string) ([
 	return base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
 }
 
+// GetFileWithSHA fetches a file's raw bytes and its blob SHA. The SHA is required
+// to update the file via the Contents API (optimistic concurrency).
+func (c *GitHubClient) GetFileWithSHA(ctx context.Context, repo, path string) ([]byte, string, error) {
+	var raw struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+		SHA      string `json:"sha"`
+	}
+	if err := c.get(ctx, "/repos/"+repo+"/contents/"+path, &raw); err != nil {
+		return nil, "", err
+	}
+	if raw.Encoding != "base64" {
+		return nil, "", fmt.Errorf("github contents %s: unexpected encoding %q", path, raw.Encoding)
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
+	return b, raw.SHA, err
+}
+
 // ListDir returns repo-relative paths of files (type=="file") directly under
 // dir via the contents API. A missing directory (404) yields an empty slice,
 // not an error, so an empty queue is not a failure.
