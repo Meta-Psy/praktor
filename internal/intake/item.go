@@ -13,6 +13,7 @@ const (
 	StatusDone               = "done"
 	StatusAwaitingApproval   = "awaiting-approval"
 	StatusNeedsDesign        = "needs-design"
+	StatusApproved           = "approved"
 	StatusNeedsClarification = "needs-clarification"
 	StatusError              = "error"
 )
@@ -33,6 +34,8 @@ type Item struct {
 	TargetProject string   `json:"target_project,omitempty"`
 	Route         string   `json:"route,omitempty"`
 	Status        string   `json:"status"`
+	PlanFile      string   `json:"plan_file,omitempty"`   // "items/<id>.plan.md", set by producer
+	ReviewNote    string   `json:"review_note,omitempty"` // reject reason from MC
 	CreatedAt     string   `json:"created_at"`
 	UpdatedAt     string   `json:"updated_at"`
 }
@@ -59,8 +62,9 @@ var transitions = map[string][]string{
 	StatusQueued:           {StatusTriaged, StatusNeedsClarification, StatusError},
 	StatusTriaged:          {StatusInProgress, StatusAwaitingApproval, StatusNeedsDesign, StatusError},
 	StatusInProgress:       {StatusDone, StatusError},
-	StatusAwaitingApproval: {StatusInProgress, StatusDone, StatusError},
-	StatusNeedsDesign:      {StatusInProgress, StatusError},
+	StatusAwaitingApproval: {StatusInProgress, StatusDone, StatusApproved, StatusNeedsDesign, StatusError},
+	StatusNeedsDesign:      {StatusInProgress, StatusAwaitingApproval, StatusError},
+	StatusApproved:         {StatusInProgress, StatusError},
 }
 
 // ValidTransition reports whether status may move from → to.
