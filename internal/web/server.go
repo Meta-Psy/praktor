@@ -75,7 +75,6 @@ type Server struct {
 	intakeCache *intakeCache  // S2 intake cache
 	intakeQueue intakeWriter  // S2 queue writer (web POST)
 	transcriber transcriber   // S2 STT for web voice
-	intakeRepo  string        // S2 INTAKE_QUEUE_REPO
 }
 
 func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig) *Server {
@@ -118,7 +117,6 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 		srv.portfolioCache = &portfolioCache{ttl: 60 * time.Second}
 	}
 	if repo := os.Getenv("INTAKE_QUEUE_REPO"); repo != "" {
-		srv.intakeRepo = repo
 		srv.intake = &intakeReader{
 			gh:   &GitHubClient{Token: os.Getenv("GITHUB_READ_TOKEN")},
 			repo: repo,

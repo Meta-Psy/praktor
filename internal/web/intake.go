@@ -199,9 +199,12 @@ func newIntakeID(now time.Time) string {
 	return now.UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b)
 }
 
-// baseName returns the file's base name, or fallback if empty.
+// baseName returns the file's base name, or fallback if empty. Backslashes are
+// normalized to slashes first so a Windows-style upload name can't smuggle a
+// path (path.Base only splits on "/").
 func baseName(name, fallback string) string {
-	name = pathpkg.Base(strings.TrimSpace(name))
+	name = strings.ReplaceAll(strings.TrimSpace(name), "\\", "/")
+	name = pathpkg.Base(name)
 	if name == "" || name == "." || name == "/" {
 		return fallback
 	}

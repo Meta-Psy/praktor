@@ -118,7 +118,7 @@ func multipartBody(t *testing.T, fields map[string]string, files map[string]stru
 }
 
 func newIntakeServer(q intakeWriter, tr transcriber) *Server {
-	return &Server{intakeQueue: q, transcriber: tr, intakeRepo: "r/q"}
+	return &Server{intakeQueue: q, transcriber: tr}
 }
 
 func TestHandleIntakeCreateText(t *testing.T) {
@@ -151,8 +151,8 @@ func TestHandleIntakeCreateVoiceTranscribed(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
 	}
-	if q.put.RawText != "dictated task" {
-		t.Fatalf("raw = %q", q.put.RawText)
+	if q.put == nil || q.put.RawText != "dictated task" {
+		t.Fatalf("queued = %+v", q.put)
 	}
 }
 
