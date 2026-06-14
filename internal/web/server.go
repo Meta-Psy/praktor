@@ -77,7 +77,7 @@ type Server struct {
 	transcriber transcriber   // S2 STT for web voice
 }
 
-func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig) *Server {
+func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig, speechCfg config.SpeechConfig) *Server {
 	srv := &Server{
 		store:      s,
 		bus:        bus,
@@ -123,8 +123,10 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 		}
 		srv.intakeCache = &intakeCache{ttl: 30 * time.Second}
 		srv.intakeQueue = &intake.Queue{Token: os.Getenv("GITHUB_WRITE_TOKEN"), Repo: repo}
-		if key := os.Getenv("OPENAI_API_KEY"); key != "" {
-			srv.transcriber = speech.NewClient(key)
+		// Use the same config-sourced key as the TG poller (cfg.Speech.APIKey is
+		// populated from OPENAI_API_KEY or YAML) so web and TG STT stay in sync.
+		if speechCfg.APIKey != "" {
+			srv.transcriber = speech.NewClient(speechCfg.APIKey)
 		}
 	}
 	return srv

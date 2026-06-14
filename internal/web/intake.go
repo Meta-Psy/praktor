@@ -163,7 +163,8 @@ func (s *Server) handleIntakeCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := newIntakeID(time.Now())
+	now := time.Now()
+	id := newIntakeID(now)
 	var media []string
 	if file, hdr, err := r.FormFile("photo"); err == nil {
 		defer file.Close()
@@ -180,7 +181,7 @@ func (s *Server) handleIntakeCreate(w http.ResponseWriter, r *http.Request) {
 		media = append(media, path)
 	}
 
-	it := intake.Assemble("web", text, media, project, time.Now(), id[len(id)-4:])
+	it := intake.Assemble("web", text, media, project, now, id[len(id)-4:])
 	it.ID = id // keep the id used for media paths
 	if err := s.intakeQueue.Put(r.Context(), it); err != nil {
 		jsonError(w, "queue write failed: "+err.Error(), http.StatusBadGateway)
