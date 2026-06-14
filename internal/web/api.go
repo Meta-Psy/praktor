@@ -83,6 +83,8 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/intake", s.handleIntakeCreate)
 	mux.HandleFunc("GET /api/intake", s.handleIntakeList)
 	mux.HandleFunc("GET /api/intake/{id}/plan", s.handleIntakePlan)
+	mux.HandleFunc("POST /api/intake/{id}/approve", s.handleIntakeApprove)
+	mux.HandleFunc("POST /api/intake/{id}/reject", s.handleIntakeReject)
 
 	// System
 	mux.HandleFunc("GET /api/status", s.getStatus)
