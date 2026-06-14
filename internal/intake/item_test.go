@@ -58,6 +58,19 @@ func TestItemPlanFields(t *testing.T) {
 	if !strings.Contains(string(b), `"review_note":"переделай раздел A"`) {
 		t.Fatalf("review_note not serialized: %s", b)
 	}
+
+	// omitempty contract: zero-value plan fields must not appear in JSON.
+	blank := Item{ID: "y", Status: StatusQueued, CreatedAt: "t", UpdatedAt: "t"}
+	b2, err := json.Marshal(blank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b2), "plan_file") {
+		t.Fatalf("plan_file present when empty: %s", b2)
+	}
+	if strings.Contains(string(b2), "review_note") {
+		t.Fatalf("review_note present when empty: %s", b2)
+	}
 }
 
 func TestValidTransition(t *testing.T) {
