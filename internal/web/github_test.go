@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -44,6 +45,28 @@ func TestGitHubAuditIssuesSkipsPRs(t *testing.T) {
 	}
 	if len(issues) != 1 || issues[0].Number != 13 {
 		t.Fatalf("expected only issue #13, got %+v", issues)
+	}
+}
+
+func TestGetFileContent(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/data/contents/portfolio.json" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		// GitHub returns base64 with embedded newlines.
+		b64 := base64.StdEncoding.EncodeToString([]byte(`{"hello":"world"}`))
+		half := len(b64) / 2
+		w.Write([]byte(`{"encoding":"base64","content":"` + b64[:half] + "\\n" + b64[half:] + `"}`))
+	}))
+	defer srv.Close()
+
+	c := &GitHubClient{BaseURL: srv.URL, HTTP: srv.Client()}
+	got, err := c.GetFileContent(context.Background(), "o/data", "portfolio.json")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if string(got) != `{"hello":"world"}` {
+		t.Errorf("content = %q", got)
 	}
 }
 

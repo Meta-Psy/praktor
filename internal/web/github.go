@@ -2,10 +2,12 @@ package web
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -70,6 +72,21 @@ func (c *GitHubClient) get(ctx context.Context, path string, out any) error {
 		return fmt.Errorf("github %s: %s", path, resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// GetFileContent fetches a file's raw bytes from repo at path via the contents API.
+func (c *GitHubClient) GetFileContent(ctx context.Context, repo, path string) ([]byte, error) {
+	var raw struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	if err := c.get(ctx, "/repos/"+repo+"/contents/"+path, &raw); err != nil {
+		return nil, err
+	}
+	if raw.Encoding != "base64" {
+		return nil, fmt.Errorf("github contents %s: unexpected encoding %q", path, raw.Encoding)
+	}
+	return base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
 }
 
 // OpenPRs returns open pull requests for owner/name.

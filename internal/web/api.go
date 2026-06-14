@@ -76,6 +76,9 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/projects/{key}/pulls/{n}/merge", s.handleMerge)
 	mux.HandleFunc("POST /api/projects/{key}/deploy", s.handleDeploy)
 
+	// Portfolio dashboard (S1)
+	mux.HandleFunc("GET /api/portfolio", s.handlePortfolio)
+
 	// System
 	mux.HandleFunc("GET /api/status", s.getStatus)
 }
