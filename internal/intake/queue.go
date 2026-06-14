@@ -8,8 +8,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
+
+// escapePath percent-encodes each path segment (preserving the slashes) so an
+// arbitrary media filename — spaces, Unicode — produces a valid Contents API URL.
+func escapePath(p string) string {
+	parts := strings.Split(p, "/")
+	for i, s := range parts {
+		parts[i] = url.PathEscape(s)
+	}
+	return strings.Join(parts, "/")
+}
 
 // Queue writes intake Items and media to a GitHub data repo via the Contents API.
 // Token comes from GITHUB_WRITE_TOKEN (same write-PAT as Mission Control actions).
@@ -48,8 +60,8 @@ func (q *Queue) putFile(ctx context.Context, path string, content []byte, messag
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%s/repos/%s/contents/%s", q.base(), q.Repo, path)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(b))
+	endpoint := fmt.Sprintf("%s/repos/%s/contents/%s", q.base(), q.Repo, escapePath(path))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}

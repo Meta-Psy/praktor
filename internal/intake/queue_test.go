@@ -3,6 +3,7 @@ package intake
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,8 +18,7 @@ func TestQueuePut(t *testing.T) {
 			t.Errorf("method = %s", r.Method)
 		}
 		gotPath = r.URL.Path
-		b := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(b)
+		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{}`))
@@ -46,7 +46,9 @@ func TestQueuePut(t *testing.T) {
 }
 
 func TestQueuePutMedia(t *testing.T) {
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{}`))
 	}))
@@ -58,5 +60,25 @@ func TestQueuePutMedia(t *testing.T) {
 	}
 	if path != "items/id1/photo.jpg" {
 		t.Fatalf("path = %s", path)
+	}
+	if gotPath != "/repos/r/q/contents/items/id1/photo.jpg" {
+		t.Fatalf("url path = %s", gotPath)
+	}
+}
+
+func TestQueuePutMediaEscapesName(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.EscapedPath()
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	q := &Queue{Token: "t", Repo: "r/q", BaseURL: srv.URL, HTTP: srv.Client()}
+	if _, err := q.PutMedia(context.Background(), "id1", "my photo.jpg", []byte{1}); err != nil {
+		t.Fatalf("PutMedia: %v", err)
+	}
+	if gotPath != "/repos/r/q/contents/items/id1/my%20photo.jpg" {
+		t.Fatalf("escaped url path = %s", gotPath)
 	}
 }
