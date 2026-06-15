@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,18 @@ func (f *fakeIntakeFetcher) GetFileContent(_ context.Context, _, path string) ([
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.files[path], nil
+	b, ok := f.files[path]
+	if !ok {
+		return nil, fmt.Errorf("not found: %s %w", path, ErrNotFound)
+	}
+	return b, nil
+}
+func (f *fakeIntakeFetcher) GetFileWithSHA(_ context.Context, _, path string) ([]byte, string, error) {
+	b, err := f.GetFileContent(context.Background(), "", path)
+	if err != nil {
+		return nil, "", err
+	}
+	return b, "sha-" + path, nil
 }
 
 func TestIntakeReaderSortsNewestFirst(t *testing.T) {
@@ -82,8 +94,11 @@ func TestHandleIntakeListUnconfigured(t *testing.T) {
 }
 
 type fakeQueue struct {
-	put   *intake.Item
-	media []string
+	put        *intake.Item
+	updated    *intake.Item
+	media      []string
+	updatedSHA string
+	updateErr  error
 }
 
 func (f *fakeQueue) Put(_ context.Context, it intake.Item) error { f.put = &it; return nil }
@@ -91,6 +106,14 @@ func (f *fakeQueue) PutMedia(_ context.Context, id, name string, _ []byte) (stri
 	p := "items/" + id + "/" + name
 	f.media = append(f.media, p)
 	return p, nil
+}
+func (f *fakeQueue) Update(_ context.Context, it intake.Item, sha string) error {
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	f.updated = &it
+	f.updatedSHA = sha
+	return nil
 }
 
 type fakeTranscriber struct{ text string }
@@ -165,5 +188,84 @@ func TestHandleIntakeCreateEmpty400(t *testing.T) {
 	s.handleIntakeCreate(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("code = %d", rec.Code)
+	}
+}
+
+func TestHandleIntakePlan(t *testing.T) {
+	f := &fakeIntakeFetcher{files: map[string][]byte{
+		"items/id1.plan.md": []byte("# Plan\n\n- step one\n"),
+	}}
+	s := &Server{intake: &intakeReader{gh: f, repo: "r/q"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/id1/plan", nil)
+	req.SetPathValue("id", "id1")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
+	}
+	if rec.Body.String() != "# Plan\n\n- step one\n" {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+}
+
+func TestHandleIntakePlanMissing404(t *testing.T) {
+	f := &fakeIntakeFetcher{files: map[string][]byte{}}
+	s := &Server{intake: &intakeReader{gh: f, repo: "r/q"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/nope/plan", nil)
+	req.SetPathValue("id", "nope")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("code = %d", rec.Code)
+	}
+}
+
+func TestIntakeReaderGetItem(t *testing.T) {
+	item := `{"id":"20260615T100000Z-ab12","source":"web","raw_text":"build X","status":"awaiting-approval","created_at":"2026-06-15T10:00:00Z","updated_at":"2026-06-15T10:00:00Z"}`
+	f := &fakeIntakeFetcher{files: map[string][]byte{
+		"items/20260615T100000Z-ab12.json": []byte(item),
+	}}
+	r := &intakeReader{gh: f, repo: "r/q"}
+	it, sha, err := r.getItem(context.Background(), "20260615T100000Z-ab12")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it.Status != "awaiting-approval" || it.RawText != "build X" {
+		t.Fatalf("item = %+v", it)
+	}
+	if sha == "" {
+		t.Fatal("expected non-empty sha")
+	}
+}
+
+func TestHandleIntakePlanUnconfigured(t *testing.T) {
+	s := &Server{}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/x/plan", nil)
+	req.SetPathValue("id", "x")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code = %d, want 503", rec.Code)
+	}
+}
+
+type errFetcher struct{}
+
+func (errFetcher) ListDir(_ context.Context, _, _ string) ([]string, error) { return nil, nil }
+func (errFetcher) GetFileContent(_ context.Context, _, _ string) ([]byte, error) {
+	return nil, fmt.Errorf("boom: rate limited")
+}
+func (errFetcher) GetFileWithSHA(_ context.Context, _, _ string) ([]byte, string, error) {
+	return nil, "", fmt.Errorf("boom: rate limited")
+}
+
+func TestHandleIntakePlanUpstreamError502(t *testing.T) {
+	s := &Server{intake: &intakeReader{gh: errFetcher{}, repo: "r/q"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/intake/id1/plan", nil)
+	req.SetPathValue("id", "id1")
+	rec := httptest.NewRecorder()
+	s.handleIntakePlan(rec, req)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("code = %d, want 502", rec.Code)
 	}
 }

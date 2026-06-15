@@ -25,3 +25,11 @@ export function mergePR(key: string, n: number): Promise<void> {
 export function deploy(key: string): Promise<void> {
   return post(`/api/projects/${key}/deploy`);
 }
+
+export function approvePlan(id: string): Promise<void> {
+  return post(`/api/intake/${id}/approve`);
+}
+
+export function rejectPlan(id: string, reason: string): Promise<void> {
+  return post(`/api/intake/${id}/reject`, { reason });
+}

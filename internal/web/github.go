@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
+
+// ErrNotFound is returned by read methods when the GitHub API responds 404
+// (the resource genuinely does not exist), distinct from transient errors.
+var ErrNotFound = errors.New("github: not found")
 
 // GitHubClient is a minimal read-only GitHub REST client for the MC roll-up.
 type GitHubClient struct {
@@ -68,6 +73,9 @@ func (c *GitHubClient) get(ctx context.Context, path string, out any) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("github %s: %w", path, ErrNotFound)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("github %s: %s", path, resp.Status)
 	}
@@ -87,6 +95,24 @@ func (c *GitHubClient) GetFileContent(ctx context.Context, repo, path string) ([
 		return nil, fmt.Errorf("github contents %s: unexpected encoding %q", path, raw.Encoding)
 	}
 	return base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
+}
+
+// GetFileWithSHA fetches a file's raw bytes and its blob SHA. The SHA is required
+// to update the file via the Contents API (optimistic concurrency).
+func (c *GitHubClient) GetFileWithSHA(ctx context.Context, repo, path string) ([]byte, string, error) {
+	var raw struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+		SHA      string `json:"sha"`
+	}
+	if err := c.get(ctx, "/repos/"+repo+"/contents/"+path, &raw); err != nil {
+		return nil, "", err
+	}
+	if raw.Encoding != "base64" {
+		return nil, "", fmt.Errorf("github contents %s: unexpected encoding %q", path, raw.Encoding)
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
+	return b, raw.SHA, err
 }
 
 // ListDir returns repo-relative paths of files (type=="file") directly under

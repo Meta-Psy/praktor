@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	pathpkg "path"
@@ -20,6 +21,7 @@ import (
 type intakeFetcher interface {
 	ListDir(ctx context.Context, repo, dir string) ([]string, error)
 	GetFileContent(ctx context.Context, repo, path string) ([]byte, error)
+	GetFileWithSHA(ctx context.Context, repo, path string) ([]byte, string, error)
 }
 
 type intakeReader struct {
@@ -47,6 +49,19 @@ func (r *intakeReader) list(ctx context.Context) ([]intake.Item, error) {
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt > items[j].CreatedAt })
 	return items, nil
+}
+
+// getItem fetches one queue item plus its blob SHA, for status transitions.
+func (r *intakeReader) getItem(ctx context.Context, id string) (intake.Item, string, error) {
+	raw, sha, err := r.gh.GetFileWithSHA(ctx, r.repo, "items/"+id+".json")
+	if err != nil {
+		return intake.Item{}, "", err
+	}
+	var it intake.Item
+	if err := json.Unmarshal(raw, &it); err != nil {
+		return intake.Item{}, "", err
+	}
+	return it, sha, nil
 }
 
 type intakeResponse struct {
@@ -98,6 +113,29 @@ func (c *intakeCache) get(read func(context.Context) ([]intake.Item, error)) int
 	return intakeResponse{Items: items}
 }
 
+// handleIntakePlan is GET /api/intake/{id}/plan — returns the plan markdown for
+// an awaiting-approval item. Plan lives at items/<id>.plan.md by convention.
+func (s *Server) handleIntakePlan(w http.ResponseWriter, r *http.Request) {
+	if s.intake == nil {
+		jsonError(w, "intake not configured", http.StatusServiceUnavailable)
+		return
+	}
+	id := r.PathValue("id")
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	md, err := s.intake.gh.GetFileContent(ctx, s.intake.repo, "items/"+id+".plan.md")
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			jsonError(w, "plan not found", http.StatusNotFound)
+			return
+		}
+		jsonError(w, "upstream error: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	_, _ = w.Write(md)
+}
+
 // handleIntakeList is GET /api/intake.
 func (s *Server) handleIntakeList(w http.ResponseWriter, r *http.Request) {
 	if s.intake == nil || s.intakeCache == nil {
@@ -116,6 +154,7 @@ type transcriber interface {
 type intakeWriter interface {
 	Put(ctx context.Context, it intake.Item) error
 	PutMedia(ctx context.Context, id, name string, data []byte) (string, error)
+	Update(ctx context.Context, it intake.Item, sha string) error
 }
 
 const intakeMaxUpload = 12 << 20 // 12 MiB

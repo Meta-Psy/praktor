@@ -98,6 +98,19 @@ func (q *Queue) Put(ctx context.Context, it Item) error {
 	return q.putFile(ctx, "items/"+it.ID+".json", data, "intake: queue "+it.ID, "")
 }
 
+// Update overwrites items/<id>.json carrying sha (optimistic concurrency); a
+// stale sha makes the Contents API reject the write.
+func (q *Queue) Update(ctx context.Context, it Item, sha string) error {
+	if sha == "" {
+		return fmt.Errorf("intake.Queue.Update: sha must not be empty")
+	}
+	data, err := json.MarshalIndent(it, "", "  ")
+	if err != nil {
+		return err
+	}
+	return q.putFile(ctx, "items/"+it.ID+".json", data, "intake: "+it.Status+" "+it.ID, sha)
+}
+
 // PutMedia writes items/<id>/<name> and returns its repo-relative path.
 func (q *Queue) PutMedia(ctx context.Context, id, name string, data []byte) (string, error) {
 	path := fmt.Sprintf("items/%s/%s", id, name)

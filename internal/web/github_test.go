@@ -131,3 +131,29 @@ func TestListDirMissingIsEmpty(t *testing.T) {
 		t.Fatalf("paths = %v, want empty", paths)
 	}
 }
+
+func TestGetFileWithSHA(t *testing.T) {
+	const content = `{"status":"awaiting-approval"}`
+	b64 := base64.StdEncoding.EncodeToString([]byte(content))
+	half := len(b64) / 2
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/o/data/contents/items/abc.json" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		w.Write([]byte(`{"encoding":"base64","sha":"deadbeef","content":"` +
+			b64[:half] + "\\n" + b64[half:] + `"}`))
+	}))
+	defer srv.Close()
+
+	c := &GitHubClient{BaseURL: srv.URL, HTTP: srv.Client()}
+	got, sha, err := c.GetFileWithSHA(context.Background(), "o/data", "items/abc.json")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if string(got) != content {
+		t.Errorf("content = %q", got)
+	}
+	if sha != "deadbeef" {
+		t.Errorf("sha = %q, want deadbeef", sha)
+	}
+}
