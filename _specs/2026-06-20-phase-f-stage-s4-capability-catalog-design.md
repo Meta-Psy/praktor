@@ -21,7 +21,7 @@
 ## Решения (locked на brainstorm 2026-06-20)
 
 - **D1 — ядро:** показывать **и** инвентарь возможностей, **и** сводку памяти (равнозначно).
-- **D2 — глубина памяти:** только **сводка** (`count` + `last_updated` + `profile_exists`). Не список ключей, не содержимое. → нулевой PII-риск (важно: медданные в памяти).
+- **D2 — глубина памяти:** только **сводка** (`count` + `last_updated`). Не список ключей, не содержимое. → нулевой PII-риск (важно: медданные в памяти). Профиль пользователя (`USER.md`) — **глобальный** (один на всех агентов, хранится хост-стороной в `registry`), не per-agent: показывается один раз сверху как `user_profile_present`, читается хост-стороной без участия агента.
 - **D3 — подход:** **каталог в шлюзе + снимок памяти через IPC** (Подход 1). Инвентарь — целиком хост-сторона; память — агент репортит сводку по IPC, хост персистит.
 - **D4 — транспорт:** всё внутри шлюза. Внешний репо (как `portfolio-data` в S1) **не нужен** — прямой API шлюза.
 - **D5 — UX:** новая страница Catalog, обзор + drill-down (как S1 Portfolio), per-agent ось (N≤5 агентов). Чистый read-only — правки остаются в `AgentExtensions.tsx`.
@@ -62,31 +62,32 @@ GET /api/agents/    ├─ БД расширений (agent_mcp_servers/plugins/
        Extensions   ExtensionsSummary  // counts + имена из БД (MCP/skills/plugins)
        AllowedTools []string           // из AgentDefinition; пусто = без ограничений
        Restricted   bool               // len(AllowedTools) > 0
-       Memory       *MemoryStats       // из agent_memory_stats; nil = ещё не репортилось
+       Memory       *MemoryStats       // {Count, LastUpdated, ReportedAt} из agent_memory_stats; nil = ещё не репортилось
    }
    ```
+   Ответ эндпоинта — обёртка `{user_profile_present: bool, agents: []AgentCapabilities}` (профиль глобальный, читается хост-стороной из `registry.GetUserMD()`).
 
 3. **Хранилище снимка** — `internal/store`, новая таблица + CRUD.
    ```sql
    CREATE TABLE IF NOT EXISTS agent_memory_stats (
-     agent_id       TEXT PRIMARY KEY,
-     mem_count      INTEGER NOT NULL DEFAULT 0,
-     last_updated   TEXT,              -- RFC3339, последняя запись памяти (от агента)
-     profile_exists INTEGER NOT NULL DEFAULT 0,
-     reported_at    TEXT NOT NULL      -- когда хост принял снимок (time.Now().UTC())
+     agent_id      TEXT PRIMARY KEY,
+     mem_count     INTEGER NOT NULL DEFAULT 0,
+     last_updated  TEXT,              -- RFC3339, последняя запись памяти (от агента)
+     reported_at   TEXT NOT NULL      -- когда хост принял снимок (time.Now().UTC())
    );
    ```
-   `UpsertMemoryStats(agentID, count, lastUpdated, profileExists, reportedAt)` + чтение.
+   `UpsertMemoryStats(agentID, count, lastUpdated, reportedAt)` + чтение.
 
 4. **Память-пайплайн:**
-   - **Агент** (`agent-runner/src/mcp-memory.ts` + `ipc.ts`): `reportMemorySummary()` считает `COUNT(*)`, `MAX(updated_at)`, наличие профиля из `memory.db`; вызывается на старте (рядом с backfill эмбеддингов) и после `memory_store`/`memory_forget`; шлёт `sendIPC({type:"memory_summary", payload:{count, last_updated, profile_exists}})`.
+   - **Агент** (`agent-runner/src/mcp-memory.ts` + `ipc.ts`): `reportMemorySummary()` считает `COUNT(*)` и `MAX(updated_at)` из `memory.db` (колонка `updated_at` — unix-epoch секунды); вызывается на старте (рядом с backfill эмбеддингов) и после `memory_store`/`memory_forget`; шлёт `sendIPC("memory_summary", {count, last_updated})` (`last_updated` — RFC3339, конвертируется из epoch на стороне агента).
    - **Хост** (`internal/agent/orchestrator.go`): `case "memory_summary": o.ipcMemorySummary(...)` → парсит payload, `store.UpsertMemoryStats(...)` с `reported_at = time.Now().UTC()` (единый источник времени — не доверяем часам контейнера), отвечает `{ok:true}`.
 
-5. **API** — `GET /api/agents/capabilities` (маршрут в `internal/web/api.go`): массив `AgentCapabilities` по всем агентам, за session-auth, read-only.
+5. **API** — `GET /api/agents/capabilities` (маршрут в `internal/web/api.go`): `{user_profile_present, agents:[]AgentCapabilities}`, за session-auth, read-only.
 
 6. **React** — `ui/src/pages/Catalog.tsx` + `ui/src/pages/catalogStatus.ts` (чистые хелперы) + nav-иконка в `App.tsx`:
+   - **Глобально (сверху):** «Профиль пользователя: задан / не задан» (из `user_profile_present`).
    - **Обзор:** карточка на агента — имя, модель, чипы групп возможностей (`memory · tasks · web · browser · nix?`), бейдж «restricted» при заданном `allowed_tools`, строка памяти («47 записей · 2 дня назад» / «нет данных»).
-   - **Drill-down** (раскрытие): встроенные возможности с tools, расширения по именам (MCP/skills/plugins), полный `allowed_tools`, детали памяти + профиль.
+   - **Drill-down** (раскрытие): встроенные возможности с tools, расширения по именам (MCP/skills/plugins), полный `allowed_tools`, детали памяти (счёт + последняя запись + снимок от).
 
 ## Поток данных
 
