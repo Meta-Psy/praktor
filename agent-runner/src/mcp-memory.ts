@@ -298,6 +298,7 @@ server.tool(
     if (result.changes === 0) {
       return { content: [{ type: "text" as const, text: `No memory found with key: ${key}` }] };
     }
+    reportMemorySummary();
     return { content: [{ type: "text" as const, text: `Memory deleted: ${key}` }] };
   }
 );
