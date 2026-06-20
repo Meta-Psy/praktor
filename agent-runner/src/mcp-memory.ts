@@ -3,6 +3,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
+import { sendIPC } from "./ipc.js";
+import { toMemorySummary } from "./memory-summary.js";
 
 // Use CJS require for @huggingface/transformers — its ESM exports don't resolve on Node 24 Alpine
 const _require = createRequire(import.meta.url);
@@ -146,6 +148,8 @@ server.tool(
 
     // Compute and store embedding async (don't block response)
     storeEmbeddingAsync(key, content, tags || "");
+
+    reportMemorySummary();
 
     return {
       content: [{ type: "text" as const, text: `Memory stored: ${key}` }],
@@ -335,11 +339,30 @@ server.tool(
       deletedCount = Number(result.changes);
     }
 
+    reportMemorySummary();
+
     return {
       content: [{ type: "text" as const, text: `Deleted ${deletedCount} memory(ies) matching "${query}".` }],
     };
   }
 );
+
+// reportMemorySummary pushes a {count, last_updated} snapshot to the host so
+// the S4 catalog can show memory state even while this agent is stopped.
+// Best-effort: never throws into callers.
+function reportMemorySummary(): void {
+  try {
+    const row = memoryDb
+      .prepare("SELECT COUNT(*) AS c, COALESCE(MAX(updated_at), 0) AS m FROM memories")
+      .get() as { c: number | bigint; m: number | bigint };
+    const summary = toMemorySummary(Number(row.c), Number(row.m));
+    void sendIPC("memory_summary", { ...summary }).catch((err) =>
+      console.error("[mcp-memory] memory_summary IPC failed:", err)
+    );
+  } catch (err) {
+    console.error("[mcp-memory] reportMemorySummary failed:", err);
+  }
+}
 
 // Lazy backfill: compute embeddings for memories missing them
 async function backfillEmbeddings(): Promise<void> {
@@ -376,6 +399,9 @@ async function main(): Promise<void> {
   setTimeout(() => backfillEmbeddings().catch((err) =>
     console.error("[mcp-memory] backfill error:", err)
   ), 2000);
+
+  // Push an initial memory snapshot to the host catalog (S4).
+  reportMemorySummary();
 }
 
 main().catch((err) => {
