@@ -21,7 +21,7 @@ var Builtins = []Capability{
 	{Key: "profile", Label: "User Profile", Group: "profile", Tools: []string{"user_profile_read", "user_profile_update"}},
 	{Key: "memory", Label: "Memory", Group: "memory", Tools: []string{"memory_store", "memory_recall", "memory_list", "memory_delete", "memory_forget"}},
 	{Key: "file", Label: "File Send", Group: "files", Tools: []string{"file_send"}},
-	{Key: "history", Label: "History Search", Group: "history", Tools: []string{"search_history"}},
+	{Key: "history", Label: "History Search", Group: "history", Tools: []string{"history_search"}},
 	{Key: "web", Label: "Web Access", Group: "web", Tools: []string{"WebSearch", "WebFetch"}},
 	{Key: "browser", Label: "Browser Automation", Group: "browser", Tools: []string{"agent-browser"}},
 	{Key: "nix", Label: "Nix Packages", Group: "nix", Tools: []string{"nix_search", "nix_add", "nix_list_installed", "nix_remove", "nix_upgrade"}, Conditional: "nix_enabled"},
