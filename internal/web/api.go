@@ -28,6 +28,7 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	// Agents (definitions from config, persisted in DB)
 	mux.HandleFunc("GET /api/agents/definitions", s.listAgentDefinitions)
 	mux.HandleFunc("GET /api/agents/definitions/{id}", s.getAgentDefinition)
+	mux.HandleFunc("GET /api/agents/capabilities", s.handleCapabilities)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/messages", s.getAgentMessages)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/messages/search", s.searchAgentMessages)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/agent-md", s.getAgentMD)

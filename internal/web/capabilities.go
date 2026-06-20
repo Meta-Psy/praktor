@@ -1,7 +1,9 @@
 package web
 
 import (
+	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/mtzanidakis/praktor/internal/capabilities"
 	"github.com/mtzanidakis/praktor/internal/config"
@@ -75,4 +77,43 @@ func assembleCapabilities(a store.Agent, def config.AgentDefinition, model strin
 		Restricted:   len(def.AllowedTools) > 0,
 		Memory:       mem,
 	}
+}
+
+// buildCatalog assembles the capability catalog across all configured agents.
+func (s *Server) buildCatalog() (CatalogResponse, error) {
+	agents, err := s.registry.List()
+	if err != nil {
+		return CatalogResponse{}, err
+	}
+	memStats, _ := s.store.GetMemoryStats()
+
+	out := make([]AgentCapabilities, 0, len(agents))
+	for _, a := range agents {
+		def, _ := s.registry.GetDefinition(a.ID)
+
+		var ext *extensions.AgentExtensions
+		if blob, err := s.store.GetAgentExtensions(a.ID); err == nil {
+			ext, _ = extensions.Parse(blob)
+		}
+
+		var mem *MemoryStats
+		if ms, ok := memStats[a.ID]; ok {
+			mem = &MemoryStats{Count: ms.Count, LastUpdated: ms.LastUpdated, ReportedAt: ms.ReportedAt}
+		}
+
+		out = append(out, assembleCapabilities(a, def, s.registry.ResolveModel(a.ID), ext, mem))
+	}
+
+	profile, _ := s.registry.GetUserMD()
+	return CatalogResponse{UserProfilePresent: strings.TrimSpace(profile) != "", Agents: out}, nil
+}
+
+// handleCapabilities is GET /api/agents/capabilities — the read-only catalog.
+func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+	cat, err := s.buildCatalog()
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, cat)
 }
