@@ -481,6 +481,8 @@ func (o *Orchestrator) handleIPC(msg *nats.Msg) {
 		o.ipcSendFile(msg, agentID, cmd.Payload)
 	case "search_history":
 		o.ipcSearchHistory(msg, agentID, cmd.Payload)
+	case "memory_summary":
+		o.ipcMemorySummary(msg, agentID, cmd.Payload)
 	default:
 		slog.Warn("unknown IPC command", "type", cmd.Type)
 		o.respondIPC(msg, map[string]any{"error": "unknown command: " + cmd.Type})
@@ -772,6 +774,28 @@ func (o *Orchestrator) ipcSearchHistory(msg *nats.Msg, agentID string, payload j
 
 	slog.Info("history search via IPC", "agent", agentID, "query", req.Query, "results", len(out))
 	o.respondIPC(msg, map[string]any{"ok": true, "messages": out})
+}
+
+// applyMemorySummary parses a memory_summary payload and upserts the snapshot,
+// stamping reported_at host-side (we don't trust the container clock). Split
+// from ipcMemorySummary so it is unit-testable without NATS.
+func (o *Orchestrator) applyMemorySummary(agentID string, payload json.RawMessage, now time.Time) error {
+	var req struct {
+		Count       int    `json:"count"`
+		LastUpdated string `json:"last_updated"`
+	}
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return fmt.Errorf("invalid memory_summary payload: %w", err)
+	}
+	return o.store.UpsertMemoryStats(agentID, req.Count, req.LastUpdated, now.UTC().Format(time.RFC3339))
+}
+
+func (o *Orchestrator) ipcMemorySummary(msg *nats.Msg, agentID string, payload json.RawMessage) {
+	if err := o.applyMemorySummary(agentID, payload, time.Now()); err != nil {
+		o.respondIPC(msg, map[string]any{"error": err.Error()})
+		return
+	}
+	o.respondIPC(msg, map[string]any{"ok": true})
 }
 
 func (o *Orchestrator) publishMessageEvent(msg *store.Message, terminalReason ...string) {
