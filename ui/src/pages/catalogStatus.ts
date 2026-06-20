@@ -36,5 +36,5 @@ export function formatMemory(mem: MemoryStats | null): string {
 
 // capabilityGroups returns the distinct capability group labels for chips.
 export function capabilityGroups(agent: AgentCapabilities): string[] {
-  return agent.builtin.map((c) => c.group);
+  return [...new Set(agent.builtin.map((c) => c.group))];
 }
