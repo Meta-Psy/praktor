@@ -3,7 +3,6 @@ package web
 import (
 	"net/http"
 	"sort"
-	"strings"
 
 	"github.com/mtzanidakis/praktor/internal/capabilities"
 	"github.com/mtzanidakis/praktor/internal/config"
@@ -104,8 +103,7 @@ func (s *Server) buildCatalog() (CatalogResponse, error) {
 		out = append(out, assembleCapabilities(a, def, s.registry.ResolveModel(a.ID), ext, mem))
 	}
 
-	profile, _ := s.registry.GetUserMD()
-	return CatalogResponse{UserProfilePresent: strings.TrimSpace(profile) != "", Agents: out}, nil
+	return CatalogResponse{UserProfilePresent: s.registry.UserProfileCustomized(), Agents: out}, nil
 }
 
 // handleCapabilities is GET /api/agents/capabilities — the read-only catalog.
