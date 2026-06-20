@@ -73,6 +73,12 @@ func (s *Store) migrate() error {
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS agent_memory_stats (
+			agent_id     TEXT PRIMARY KEY,
+			mem_count    INTEGER NOT NULL DEFAULT 0,
+			last_updated TEXT,
+			reported_at  TEXT NOT NULL
+		)`,
 		`CREATE TABLE IF NOT EXISTS messages (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			agent_id    TEXT NOT NULL REFERENCES agents(id),
