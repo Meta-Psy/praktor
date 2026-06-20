@@ -37,6 +37,12 @@ func (r *intakeReader) list(ctx context.Context) ([]intake.Item, error) {
 	}
 	items := make([]intake.Item, 0, len(paths))
 	for _, p := range paths {
+		// items/ also holds plan markdown (.plan.md), media, and a .gitkeep;
+		// only the .json files are queue items — skip the rest so a non-JSON
+		// sibling doesn't fail the whole list.
+		if !strings.HasSuffix(p, ".json") {
+			continue
+		}
 		raw, err := r.gh.GetFileContent(ctx, r.repo, p)
 		if err != nil {
 			return nil, err

@@ -62,6 +62,33 @@ func TestIntakeReaderSortsNewestFirst(t *testing.T) {
 	}
 }
 
+func TestIntakeReaderSkipsNonJSON(t *testing.T) {
+	// items/ also holds plan markdown (.plan.md), media, and a .gitkeep; list must
+	// parse only the .json item files and skip the rest, not error on the whole dir.
+	f := &fakeIntakeFetcher{
+		paths: map[string][]string{"items": {
+			"items/.gitkeep",
+			"items/a.json",
+			"items/a.plan.md",
+			"items/a/photo.jpg",
+		}},
+		files: map[string][]byte{
+			"items/.gitkeep":    []byte(""),
+			"items/a.json":      []byte(`{"id":"a","status":"awaiting-approval","created_at":"2026-06-20T08:00:00Z"}`),
+			"items/a.plan.md":   []byte("# Plan\n\n- step one\n"),
+			"items/a/photo.jpg": []byte("\xff\xd8\xff"),
+		},
+	}
+	r := &intakeReader{gh: f, repo: "r/q"}
+	items, err := r.list(context.Background())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != "a" {
+		t.Fatalf("items = %+v, want only item a", items)
+	}
+}
+
 func TestIntakeCacheServesStaleOnError(t *testing.T) {
 	good := &fakeIntakeFetcher{
 		paths: map[string][]string{"items": {"items/a.json"}},
