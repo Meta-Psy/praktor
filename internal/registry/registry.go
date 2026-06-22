@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/mtzanidakis/praktor/internal/config"
@@ -267,6 +268,18 @@ func (r *Registry) GetUserMD() (string, error) {
 func (r *Registry) SaveUserMD(content string) error {
 	path := filepath.Join(r.basePath, "global", "USER.md")
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+// UserProfileCustomized reports whether USER.md has been filled in by the user,
+// as opposed to the auto-created placeholder template (ensureGlobalDirectory
+// always writes userMDTemplate, so a plain "non-empty" check is always true).
+func (r *Registry) UserProfileCustomized() bool {
+	content, err := r.GetUserMD()
+	if err != nil {
+		return false
+	}
+	trimmed := strings.TrimSpace(content)
+	return trimmed != "" && trimmed != strings.TrimSpace(userMDTemplate)
 }
 
 const agentMDTemplate = `# Agent Identity
