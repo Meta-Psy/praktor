@@ -138,6 +138,21 @@ func (s *Store) migrate() error {
 			secret_id  TEXT NOT NULL REFERENCES secrets(id) ON DELETE CASCADE,
 			PRIMARY KEY (agent_id, secret_id)
 		)`,
+		`CREATE TABLE IF NOT EXISTS radar_items (
+			full_name    TEXT PRIMARY KEY,
+			name         TEXT NOT NULL,
+			description  TEXT,
+			html_url     TEXT NOT NULL,
+			stars        INTEGER NOT NULL DEFAULT 0,
+			topic        TEXT NOT NULL,
+			pushed_at    TEXT,
+			first_seen   TEXT NOT NULL,
+			last_updated TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS radar_meta (
+			key   TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`,
 	}
 
 	for _, m := range migrations {
