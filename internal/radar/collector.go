@@ -74,11 +74,13 @@ func (c *Collector) collectOnce(ctx context.Context) error {
 			if !keepRepo(r, c.Cfg.MinStars, c.Cfg.FreshnessDays, now) {
 				continue
 			}
-			c.Store.UpsertRadarItem(store.RadarItem{
+			if err := c.Store.UpsertRadarItem(store.RadarItem{
 				FullName: r.FullName, Name: r.Name, Description: r.Description,
 				HTMLURL: r.HTMLURL, Stars: r.Stars, Topic: topic, PushedAt: r.PushedAt,
 				FirstSeen: stamp, LastUpdated: stamp,
-			})
+			}); err != nil {
+				slog.Warn("radar upsert failed", "repo", r.FullName, "error", err)
+			}
 		}
 	}
 	return nil
