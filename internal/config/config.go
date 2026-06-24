@@ -116,6 +116,17 @@ type SchedulerConfig struct {
 	PollInterval time.Duration `yaml:"poll_interval"`
 }
 
+// RadarConfig configures the S5 ecosystem radar (GitHub topic-search feed).
+type RadarConfig struct {
+	Enabled        bool          `yaml:"enabled"`
+	PollInterval   time.Duration `yaml:"poll_interval"`
+	MinStars       int           `yaml:"min_stars"`
+	FreshnessDays  int           `yaml:"freshness_days"`
+	Topics         []string      `yaml:"topics"`
+	DigestEnabled  bool          `yaml:"digest_enabled"`
+	DigestInterval time.Duration `yaml:"digest_interval"`
+}
+
 func defaults() Config {
 	return Config{
 		Defaults: DefaultsConfig{
