@@ -252,6 +252,71 @@ func TestApplyEnvIntakeToken(t *testing.T) {
 	}
 }
 
+func TestRadarDefaults(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	yaml := `
+radar:
+  enabled: true
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PRAKTOR_CONFIG", cfgPath)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Radar.PollInterval != 6*time.Hour {
+		t.Errorf("expected poll_interval 6h, got %v", cfg.Radar.PollInterval)
+	}
+	if cfg.Radar.MinStars != 10 {
+		t.Errorf("expected min_stars 10, got %d", cfg.Radar.MinStars)
+	}
+	if cfg.Radar.FreshnessDays != 30 {
+		t.Errorf("expected freshness_days 30, got %d", cfg.Radar.FreshnessDays)
+	}
+	if len(cfg.Radar.Topics) != 3 {
+		t.Errorf("expected 3 default topics, got %v", cfg.Radar.Topics)
+	}
+	if cfg.Radar.DigestInterval != 168*time.Hour {
+		t.Errorf("expected digest_interval 168h, got %v", cfg.Radar.DigestInterval)
+	}
+}
+
+func TestRadarDefaultsDisabled(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+
+	yaml := `
+radar:
+  enabled: false
+`
+	if err := os.WriteFile(cfgPath, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PRAKTOR_CONFIG", cfgPath)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Radar.PollInterval != 0 {
+		t.Errorf("expected poll_interval 0 when disabled, got %v", cfg.Radar.PollInterval)
+	}
+	if cfg.Radar.MinStars != 0 {
+		t.Errorf("expected min_stars 0 when disabled, got %d", cfg.Radar.MinStars)
+	}
+	if len(cfg.Radar.Topics) != 0 {
+		t.Errorf("expected no topics when disabled, got %v", cfg.Radar.Topics)
+	}
+	if cfg.Radar.DigestInterval != 0 {
+		t.Errorf("expected digest_interval 0 when disabled, got %v", cfg.Radar.DigestInterval)
+	}
+}
+
 func TestProjectsParse(t *testing.T) {
 	yaml := `
 projects:

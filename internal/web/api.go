@@ -79,6 +79,7 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 
 	// Portfolio dashboard (S1)
 	mux.HandleFunc("GET /api/portfolio", s.handlePortfolio)
+	mux.HandleFunc("GET /api/radar", s.handleRadar)
 
 	// Intake & triage (S2)
 	mux.HandleFunc("POST /api/intake", s.handleIntakeCreate)

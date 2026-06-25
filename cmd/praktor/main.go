@@ -16,6 +16,7 @@ import (
 	"github.com/mtzanidakis/praktor/internal/container"
 	"github.com/mtzanidakis/praktor/internal/intake"
 	"github.com/mtzanidakis/praktor/internal/natsbus"
+	"github.com/mtzanidakis/praktor/internal/radar"
 	"github.com/mtzanidakis/praktor/internal/registry"
 	"github.com/mtzanidakis/praktor/internal/router"
 	"github.com/mtzanidakis/praktor/internal/scheduler"
@@ -134,6 +135,18 @@ func runGateway() error {
 	// Scheduler
 	sched := scheduler.New(db, orch, bus, cfg.Scheduler, cfg.Telegram.MainChatID)
 	go sched.Start(ctx)
+
+	// Ecosystem radar (S5) — start-time gate, no hot reload.
+	if cfg.Radar.Enabled {
+		radarGH := &web.GitHubClient{Token: os.Getenv("GITHUB_READ_TOKEN")}
+		collector := radar.NewCollector(radarGH, db, cfg.Radar)
+		go collector.Run(ctx)
+		if cfg.Radar.DigestEnabled {
+			digest := radar.NewDigest(db, orch, cfg.Radar, cfg.Router.DefaultAgent, cfg.Telegram.MainChatID)
+			go digest.Run(ctx)
+		}
+		slog.Info("radar started", "poll_interval", cfg.Radar.PollInterval, "digest", cfg.Radar.DigestEnabled)
+	}
 
 	// Speech-to-text / text-to-speech (OpenAI API)
 	var speechClient *speech.Client

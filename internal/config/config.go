@@ -21,6 +21,7 @@ type Config struct {
 	AgentMail AgentMailConfig              `yaml:"agentmail"`
 	Speech    SpeechConfig                 `yaml:"speech"`
 	Intake    IntakeConfig                 `yaml:"intake"`
+	Radar     RadarConfig                  `yaml:"radar"`
 	Projects  map[string]ProjectDefinition `yaml:"projects"`
 }
 
@@ -116,6 +117,17 @@ type SchedulerConfig struct {
 	PollInterval time.Duration `yaml:"poll_interval"`
 }
 
+// RadarConfig configures the S5 ecosystem radar (GitHub topic-search feed).
+type RadarConfig struct {
+	Enabled        bool          `yaml:"enabled"`
+	PollInterval   time.Duration `yaml:"poll_interval"`
+	MinStars       int           `yaml:"min_stars"`
+	FreshnessDays  int           `yaml:"freshness_days"`
+	Topics         []string      `yaml:"topics"`
+	DigestEnabled  bool          `yaml:"digest_enabled"`
+	DigestInterval time.Duration `yaml:"digest_interval"`
+}
+
 func defaults() Config {
 	return Config{
 		Defaults: DefaultsConfig{
@@ -182,12 +194,36 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// Apply radar defaults (only when enabled)
+	applyRadarDefaults(&cfg)
+
 	// Validation
 	if err := validate(&cfg); err != nil {
 		return nil, err
 	}
 
 	return &cfg, nil
+}
+
+func applyRadarDefaults(cfg *Config) {
+	if !cfg.Radar.Enabled {
+		return
+	}
+	if cfg.Radar.PollInterval == 0 {
+		cfg.Radar.PollInterval = 6 * time.Hour
+	}
+	if cfg.Radar.MinStars == 0 {
+		cfg.Radar.MinStars = 10
+	}
+	if cfg.Radar.FreshnessDays == 0 {
+		cfg.Radar.FreshnessDays = 30
+	}
+	if len(cfg.Radar.Topics) == 0 {
+		cfg.Radar.Topics = []string{"mcp", "model-context-protocol", "claude-code"}
+	}
+	if cfg.Radar.DigestInterval == 0 {
+		cfg.Radar.DigestInterval = 168 * time.Hour
+	}
 }
 
 func validate(cfg *Config) error {

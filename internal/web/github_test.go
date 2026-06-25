@@ -132,6 +132,31 @@ func TestListDirMissingIsEmpty(t *testing.T) {
 	}
 }
 
+func TestSearchRepos(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search/repositories" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"items":[
+			{"full_name":"o/mcp-x","name":"mcp-x","description":"d","html_url":"https://github.com/o/mcp-x","stargazers_count":12,"pushed_at":"2026-06-20T08:00:00Z","archived":false,"fork":false}
+		]}`))
+	}))
+	defer srv.Close()
+
+	c := &GitHubClient{BaseURL: srv.URL}
+	repos, err := c.SearchRepos(context.Background(), "q=topic:mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repos) != 1 {
+		t.Fatalf("len = %d", len(repos))
+	}
+	r := repos[0]
+	if r.FullName != "o/mcp-x" || r.Stars != 12 || r.HTMLURL == "" || r.PushedAt == "" {
+		t.Fatalf("repo = %+v", r)
+	}
+}
+
 func TestGetFileWithSHA(t *testing.T) {
 	const content = `{"status":"awaiting-approval"}`
 	b64 := base64.StdEncoding.EncodeToString([]byte(content))

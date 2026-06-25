@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/mtzanidakis/praktor/internal/radar"
 )
 
 // ErrNotFound is returned by read methods when the GitHub API responds 404
@@ -95,6 +97,35 @@ func (c *GitHubClient) GetFileContent(ctx context.Context, repo, path string) ([
 		return nil, fmt.Errorf("github contents %s: unexpected encoding %q", path, raw.Encoding)
 	}
 	return base64.StdEncoding.DecodeString(strings.ReplaceAll(raw.Content, "\n", ""))
+}
+
+// SearchRepos runs a GitHub repository search. The caller builds the query
+// string (e.g. "q=topic:mcp+stars:>=10&sort=stars"). Returns radar DTOs.
+func (c *GitHubClient) SearchRepos(ctx context.Context, query string) ([]radar.RadarRepo, error) {
+	var raw struct {
+		Items []struct {
+			FullName    string `json:"full_name"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			HTMLURL     string `json:"html_url"`
+			Stars       int    `json:"stargazers_count"`
+			PushedAt    string `json:"pushed_at"`
+			Archived    bool   `json:"archived"`
+			Fork        bool   `json:"fork"`
+		} `json:"items"`
+	}
+	if err := c.get(ctx, "/search/repositories?"+query, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]radar.RadarRepo, 0, len(raw.Items))
+	for _, it := range raw.Items {
+		out = append(out, radar.RadarRepo{
+			FullName: it.FullName, Name: it.Name, Description: it.Description,
+			HTMLURL: it.HTMLURL, Stars: it.Stars, PushedAt: it.PushedAt,
+			Archived: it.Archived, Fork: it.Fork,
+		})
+	}
+	return out, nil
 }
 
 // GetFileWithSHA fetches a file's raw bytes and its blob SHA. The SHA is required

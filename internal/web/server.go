@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +76,8 @@ type Server struct {
 	intakeCache *intakeCache  // S2 intake cache
 	intakeQueue intakeWriter  // S2 queue writer (web POST)
 	transcriber transcriber   // S2 STT for web voice
+
+	radarFreshnessDays int // S5 radar is_new window (days)
 }
 
 func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig, speechCfg config.SpeechConfig) *Server {
@@ -127,6 +130,12 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 		// populated from OPENAI_API_KEY or YAML) so web and TG STT stay in sync.
 		if speechCfg.APIKey != "" {
 			srv.transcriber = speech.NewClient(speechCfg.APIKey)
+		}
+	}
+	srv.radarFreshnessDays = 30
+	if v := os.Getenv("RADAR_FRESHNESS_DAYS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			srv.radarFreshnessDays = n
 		}
 	}
 	return srv
