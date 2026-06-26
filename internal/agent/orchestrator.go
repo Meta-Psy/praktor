@@ -40,9 +40,10 @@ type Orchestrator struct {
 	cfg             config.DefaultsConfig
 	sessions        *SessionTracker
 	queues          map[string]*AgentQueue
-	lastMeta        map[string]map[string]string // agentID → last message meta (fallback for IPC)
-	pendingMeta     map[string]map[string]string // msgID → message meta
-	pendingMsgID    map[string]string            // msgID → agentID (track in-flight messages)
+	lastMeta        map[string]map[string]string  // agentID → last message meta (fallback for IPC)
+	pendingMeta     map[string]map[string]string  // msgID → message meta
+	pendingMsgID    map[string]string             // msgID → agentID (track in-flight messages)
+	pendingReplies  map[string]chan captureResult // reqID → waiting RunCapture channel
 	mu              sync.RWMutex
 	listeners       []OutputListener
 	fileListeners   []FileListener
@@ -54,6 +55,10 @@ type Orchestrator struct {
 type OutputListener func(agentID, content string, meta map[string]string)
 type FileListener func(agentID string, chatID int64, data []byte, name, mimeType, caption string)
 
+type captureResult struct {
+	content string
+}
+
 type IPCCommand struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload"`
@@ -61,17 +66,18 @@ type IPCCommand struct {
 
 func NewOrchestrator(bus *natsbus.Bus, ctr *container.Manager, s *store.Store, reg *registry.Registry, cfg config.DefaultsConfig, v *vault.Vault) *Orchestrator {
 	o := &Orchestrator{
-		bus:          bus,
-		containers:   ctr,
-		store:        s,
-		registry:     reg,
-		vault:        v,
-		cfg:          cfg,
-		sessions:     NewSessionTracker(),
-		queues:       make(map[string]*AgentQueue),
-		lastMeta:     make(map[string]map[string]string),
-		pendingMeta:  make(map[string]map[string]string),
-		pendingMsgID: make(map[string]string),
+		bus:            bus,
+		containers:     ctr,
+		store:          s,
+		registry:       reg,
+		vault:          v,
+		cfg:            cfg,
+		sessions:       NewSessionTracker(),
+		queues:         make(map[string]*AgentQueue),
+		lastMeta:       make(map[string]map[string]string),
+		pendingMeta:    make(map[string]map[string]string),
+		pendingMsgID:   make(map[string]string),
+		pendingReplies: map[string]chan captureResult{},
 	}
 
 	client, err := natsbus.NewClient(bus)
@@ -407,6 +413,11 @@ func (o *Orchestrator) handleAgentOutput(msg *nats.Msg) {
 			meta = o.getLastMeta(agentID)
 		}
 
+		// S6 intel: capture the response and suppress chat delivery.
+		if o.deliverCapture(meta, content) {
+			return
+		}
+
 		// Append terminal reason notice for listeners (e.g. Telegram)
 		listenerContent := content
 		if abnormal {
@@ -442,6 +453,63 @@ func (o *Orchestrator) popPendingMeta(msgID string) map[string]string {
 		delete(o.pendingMsgID, msgID)
 	}
 	return meta
+}
+
+// deliverCapture routes an agent result to a waiting RunCapture call when meta
+// carries an intel_reply id. Returns true when handled — the caller must then
+// skip the normal (e.g. Telegram) listeners. This is how S6 intel scrapes get
+// their response back WITHOUT delivering it to a chat.
+func (o *Orchestrator) deliverCapture(meta map[string]string, content string) bool {
+	if meta == nil {
+		return false
+	}
+	reqID := meta["intel_reply"]
+	if reqID == "" {
+		return false
+	}
+	o.mu.Lock()
+	ch, ok := o.pendingReplies[reqID]
+	if ok {
+		delete(o.pendingReplies, reqID)
+	}
+	o.mu.Unlock()
+	if ok {
+		ch <- captureResult{content: content}
+	}
+	return true // intel-marked: suppress listeners regardless of whether a waiter remained
+}
+
+// RunCapture dispatches a prompt to an agent and returns its text response
+// synchronously, without delivering it to Telegram. Used by the S6 intel collector.
+func (o *Orchestrator) RunCapture(ctx context.Context, agentID, prompt string) (string, error) {
+	reqID := uuid.New().String()
+	ch := make(chan captureResult, 1)
+	o.mu.Lock()
+	o.pendingReplies[reqID] = ch
+	o.mu.Unlock()
+
+	meta := map[string]string{"intel_reply": reqID, "sender": "intel"}
+	if err := o.HandleMessage(ctx, agentID, prompt, meta); err != nil {
+		o.mu.Lock()
+		delete(o.pendingReplies, reqID)
+		o.mu.Unlock()
+		return "", err
+	}
+
+	select {
+	case <-ctx.Done():
+		o.mu.Lock()
+		delete(o.pendingReplies, reqID)
+		o.mu.Unlock()
+		return "", ctx.Err()
+	case <-time.After(5 * time.Minute):
+		o.mu.Lock()
+		delete(o.pendingReplies, reqID)
+		o.mu.Unlock()
+		return "", fmt.Errorf("intel capture timed out for agent %s", agentID)
+	case res := <-ch:
+		return res.content, nil
+	}
 }
 
 func (o *Orchestrator) handleIPC(msg *nats.Msg) {
