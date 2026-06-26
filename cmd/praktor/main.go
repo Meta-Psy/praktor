@@ -15,6 +15,7 @@ import (
 	"github.com/mtzanidakis/praktor/internal/config"
 	"github.com/mtzanidakis/praktor/internal/container"
 	"github.com/mtzanidakis/praktor/internal/intake"
+	"github.com/mtzanidakis/praktor/internal/intel"
 	"github.com/mtzanidakis/praktor/internal/natsbus"
 	"github.com/mtzanidakis/praktor/internal/radar"
 	"github.com/mtzanidakis/praktor/internal/registry"
@@ -146,6 +147,13 @@ func runGateway() error {
 			go digest.Run(ctx)
 		}
 		slog.Info("radar started", "poll_interval", cfg.Radar.PollInterval, "digest", cfg.Radar.DigestEnabled)
+	}
+
+	// Per-project periodic intel (S6) — start-time gate, no hot reload.
+	if cfg.Intel.Enabled && len(cfg.Intel.Sources) > 0 {
+		intelCollector := intel.NewCollector(orch, db, cfg.Intel)
+		go intelCollector.Run(ctx)
+		slog.Info("intel started", "sources", len(cfg.Intel.Sources))
 	}
 
 	// Speech-to-text / text-to-speech (OpenAI API)
