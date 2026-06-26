@@ -317,6 +317,33 @@ radar:
 	}
 }
 
+func TestApplyIntelDefaults(t *testing.T) {
+	cfg := Config{
+		Router: RouterConfig{DefaultAgent: "general"},
+		Intel: IntelConfig{
+			Enabled: true,
+			Sources: []IntelSource{
+				{Key: "a", Project: "p", Name: "A", Instruction: "do x"},
+				{Key: "b", Project: "p", Name: "B", Instruction: "do y", Cron: "0 0 * * *", Agent: "researcher"},
+			},
+		},
+	}
+	applyIntelDefaults(&cfg)
+
+	if cfg.Intel.Sources[0].Cron == "" {
+		t.Error("source[0] cron not defaulted")
+	}
+	if cfg.Intel.Sources[0].Agent != "general" {
+		t.Errorf("source[0] agent = %q, want general", cfg.Intel.Sources[0].Agent)
+	}
+	if cfg.Intel.Sources[1].Cron != "0 0 * * *" {
+		t.Error("source[1] cron overwritten")
+	}
+	if cfg.Intel.Sources[1].Agent != "researcher" {
+		t.Error("source[1] agent overwritten")
+	}
+}
+
 func TestProjectsParse(t *testing.T) {
 	yaml := `
 projects:
