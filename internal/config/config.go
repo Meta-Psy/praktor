@@ -22,6 +22,7 @@ type Config struct {
 	Speech    SpeechConfig                 `yaml:"speech"`
 	Intake    IntakeConfig                 `yaml:"intake"`
 	Radar     RadarConfig                  `yaml:"radar"`
+	Intel     IntelConfig                  `yaml:"intel"`
 	Projects  map[string]ProjectDefinition `yaml:"projects"`
 }
 
@@ -117,6 +118,22 @@ type SchedulerConfig struct {
 	PollInterval time.Duration `yaml:"poll_interval"`
 }
 
+// IntelConfig configures the S6 per-project periodic intel collector.
+type IntelConfig struct {
+	Enabled bool          `yaml:"enabled"`
+	Sources []IntelSource `yaml:"sources"`
+}
+
+// IntelSource is one pre-described source the collector scrapes on a schedule.
+type IntelSource struct {
+	Key         string `yaml:"key"`
+	Project     string `yaml:"project"`
+	Name        string `yaml:"name"`
+	Instruction string `yaml:"instruction"`
+	Cron        string `yaml:"cron"`
+	Agent       string `yaml:"agent"`
+}
+
 // RadarConfig configures the S5 ecosystem radar (GitHub topic-search feed).
 type RadarConfig struct {
 	Enabled        bool          `yaml:"enabled"`
@@ -196,6 +213,7 @@ func Load() (*Config, error) {
 
 	// Apply radar defaults (only when enabled)
 	applyRadarDefaults(&cfg)
+	applyIntelDefaults(&cfg)
 
 	// Validation
 	if err := validate(&cfg); err != nil {
@@ -203,6 +221,18 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// applyIntelDefaults fills per-source cron/agent fallbacks. Mirrors applyRadarDefaults.
+func applyIntelDefaults(cfg *Config) {
+	for i := range cfg.Intel.Sources {
+		if cfg.Intel.Sources[i].Cron == "" {
+			cfg.Intel.Sources[i].Cron = "0 9 * * 1" // weekly, Mon 09:00
+		}
+		if cfg.Intel.Sources[i].Agent == "" {
+			cfg.Intel.Sources[i].Agent = cfg.Router.DefaultAgent
+		}
+	}
 }
 
 func applyRadarDefaults(cfg *Config) {

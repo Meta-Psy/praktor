@@ -15,6 +15,7 @@ const Intake = lazy(() => import('./pages/Intake'));
 const Plans = lazy(() => import('./pages/Plans'));
 const Catalog = lazy(() => import('./pages/Catalog'));
 const Radar = lazy(() => import('./pages/Radar'));
+const Intel = lazy(() => import('./pages/Intel'));
 
 // SVG icon components (16x16)
 function IconDashboard() {
@@ -192,6 +193,16 @@ function IconRadar() {
   );
 }
 
+function IconIntel() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="6.5" />
+      <line x1="8" y1="5" x2="8" y2="8" />
+      <circle cx="8" cy="10.5" r="0.75" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 const navItems = [
   { to: '/', label: 'Dashboard', Icon: IconDashboard },
   { to: '/projects', label: 'Projects', Icon: IconProjects },
@@ -200,6 +211,7 @@ const navItems = [
   { to: '/plans', label: 'Plans', Icon: IconPlans },
   { to: '/catalog', label: 'Catalog', Icon: IconCatalog },
   { to: '/radar', label: 'Radar', Icon: IconRadar },
+  { to: '/intel', label: 'Intel', Icon: IconIntel },
   { to: '/agents', label: 'Agents', Icon: IconAgents },
   { to: '/conversations', label: 'Conversations', Icon: IconConversations },
   { to: '/tasks', label: 'Scheduled Tasks', Icon: IconTasks },
@@ -451,6 +463,7 @@ function App() {
             <Route path="/plans" element={<Plans />} />
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/radar" element={<Radar />} />
+            <Route path="/intel" element={<Intel />} />
             <Route path="/user" element={<UserProfile />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/conversations" element={<Conversations />} />

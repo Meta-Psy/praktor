@@ -153,6 +153,18 @@ func (s *Store) migrate() error {
 			key   TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS intel_snapshots (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			source_key  TEXT NOT NULL,
+			project     TEXT NOT NULL,
+			captured_at INTEGER NOT NULL,
+			payload     TEXT NOT NULL DEFAULT '',
+			change_note TEXT NOT NULL DEFAULT '',
+			ok          INTEGER NOT NULL DEFAULT 1,
+			error       TEXT NOT NULL DEFAULT ''
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_intel_source_captured
+			ON intel_snapshots (source_key, captured_at DESC)`,
 	}
 
 	for _, m := range migrations {
