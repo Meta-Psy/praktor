@@ -1,0 +1,15 @@
+.ui-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ui-field__label { color: var(--text-secondary); font-weight: 500; }
+.ui-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 11px;
+  width: 100%;
+  min-height: 38px;
+}
+.ui-input:focus { outline: none; border-color: var(--accent); }
+.ui-input--area { resize: vertical; min-height: 90px; }
