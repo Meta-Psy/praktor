@@ -17,3 +17,7 @@ docker-compose.override.yml
 /getcc
 /ptask
 /praktor
+
+# Claude worktrees & brainstorm artifacts
+.worktrees/
+.superpowers/
