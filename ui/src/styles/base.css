@@ -50,3 +50,6 @@ nav a:not(.active):hover {
   .conversations-agents { width: 100% !important; max-height: 150px; }
   .form-grid-2col { grid-template-columns: 1fr !important; }
 }
+
+/* Общие keyframes библиотеки ui-компонентов (используют Button и Loading) */
+@keyframes ui-spin { to { transform: rotate(360deg); } }

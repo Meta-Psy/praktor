@@ -26,4 +26,3 @@
   border-radius: 50%;
   animation: ui-spin 0.7s linear infinite;
 }
-@keyframes ui-spin { to { transform: rotate(360deg); } }
