@@ -26,3 +26,18 @@ test('Escape вызывает onCancel', () => {
   fireEvent.keyDown(document, { key: 'Escape' });
   expect(onCancel).toHaveBeenCalledOnce();
 });
+
+test('клик по фону вызывает onCancel', () => {
+  const onCancel = vi.fn();
+  render(<ConfirmDialog open title="Удалить?" onConfirm={() => {}} onCancel={onCancel} />);
+  fireEvent.click(document.querySelector('.ui-modal-backdrop')!);
+  expect(onCancel).toHaveBeenCalledOnce();
+});
+
+test('busy: Escape и фон не закрывают', () => {
+  const onCancel = vi.fn();
+  render(<ConfirmDialog open busy title="Удаление…" onConfirm={() => {}} onCancel={onCancel} />);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  fireEvent.click(document.querySelector('.ui-modal-backdrop')!);
+  expect(onCancel).not.toHaveBeenCalled();
+});

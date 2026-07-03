@@ -16,9 +16,12 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
 
   useEffect(() => {
     if (!open) return;
-    const box = boxRef.current;
-    box?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    boxRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const box = boxRef.current;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();

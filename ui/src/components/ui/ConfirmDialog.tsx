@@ -26,7 +26,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal open={open} onClose={onCancel} title={title}>
+    <Modal open={open} onClose={busy ? () => {} : onCancel} title={title}>
       {message && <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16 }}>{message}</div>}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button variant="secondary" onClick={onCancel} disabled={busy}>
