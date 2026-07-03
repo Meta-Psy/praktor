@@ -14,6 +14,7 @@ export function Tabs({ tabs, active, onChange }: TabsProps) {
       {tabs.map((t) => (
         <button
           key={t.id}
+          type="button"
           role="tab"
           aria-selected={t.id === active}
           className={`ui-tab${t.id === active ? ' ui-tab--active' : ''}`}

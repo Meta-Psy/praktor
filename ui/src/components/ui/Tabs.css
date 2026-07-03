@@ -20,7 +20,7 @@
   gap: 7px;
   white-space: nowrap;
 }
-.ui-tab:hover { color: var(--text-primary); filter: none; border-color: transparent; border-bottom-color: var(--border); }
+.ui-tab:hover { color: var(--text-primary); border-bottom-color: var(--border); }
 .ui-tab--active { color: var(--text-primary); border-bottom-color: var(--accent); }
 .ui-tab__count {
   background: var(--bg-elevated);
