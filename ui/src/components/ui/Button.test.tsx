@@ -1,5 +1,5 @@
-import { render, screen, cleanup } from '@testing-library/react';
-import { afterEach, expect, test } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { afterEach, expect, test, vi } from 'vitest';
 import { Button } from './Button';
 
 afterEach(cleanup);
@@ -18,4 +18,11 @@ test('primary по умолчанию', () => {
 test('busy блокирует кнопку', () => {
   render(<Button busy>Сохранить</Button>);
   expect(screen.getByRole('button')).toBeDisabled();
+});
+
+test('busy не пропускает клики', () => {
+  const onClick = vi.fn();
+  render(<Button busy onClick={onClick}>Сохранить</Button>);
+  fireEvent.click(screen.getByRole('button'));
+  expect(onClick).not.toHaveBeenCalled();
 });

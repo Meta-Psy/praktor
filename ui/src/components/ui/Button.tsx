@@ -11,6 +11,7 @@ export function Button({
   variant = 'primary',
   size = 'md',
   busy = false,
+  type = 'button',
   disabled,
   className,
   children,
@@ -20,7 +21,7 @@ export function Button({
     .filter(Boolean)
     .join(' ');
   return (
-    <button className={cls} disabled={disabled || busy} {...rest}>
+    <button type={type} className={cls} disabled={disabled || busy} aria-busy={busy || undefined} {...rest}>
       {busy && <span className="ui-btn__spinner" aria-hidden="true" />}
       {children}
     </button>
