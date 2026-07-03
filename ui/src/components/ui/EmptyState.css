@@ -1,0 +1,12 @@
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 20px;
+  gap: 8px;
+}
+.ui-empty__icon { font-size: 28px; opacity: 0.6; }
+.ui-empty__title { font-weight: 600; font-size: 15px; }
+.ui-empty__hint { color: var(--text-secondary); font-size: 13px; max-width: 420px; line-height: 1.5; }
+.ui-empty__action { margin-top: 10px; }
