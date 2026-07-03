@@ -1,0 +1,29 @@
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ui-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.ui-btn--md { padding: 8px 16px; font-size: 14px; }
+.ui-btn--sm { padding: 5px 12px; font-size: 12.5px; }
+.ui-btn--primary { background: var(--accent); color: #fff; }
+.ui-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
+.ui-btn--secondary { background: transparent; border-color: var(--border); color: var(--text-secondary); }
+.ui-btn--secondary:hover:not(:disabled) { color: var(--text-primary); }
+.ui-btn--danger { background: transparent; border-color: var(--red-muted); color: var(--red); }
+.ui-btn--danger:hover:not(:disabled) { background: var(--red-muted); }
+.ui-btn__spinner {
+  width: 12px; height: 12px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ui-spin 0.7s linear infinite;
+}
+@keyframes ui-spin { to { transform: rotate(360deg); } }
