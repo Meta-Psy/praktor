@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import {
+  Badge, Button, Card, ConfirmDialog, EmptyState, Field, Input, PageHeader,
+  Select, Skeleton, Textarea, useToast,
+} from '../components/ui';
 
 interface Secret {
   id: string;
@@ -30,63 +34,16 @@ interface SecretForm {
 
 const emptyForm: SecretForm = { name: '', description: '', kind: 'string', filename: '', value: '', global: false, agent_ids: [] };
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: 20,
-  boxShadow: 'var(--shadow)',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  borderRadius: 7,
-  border: '1px solid var(--border)',
-  background: 'var(--bg-input)',
-  color: 'var(--text-primary)',
-  fontSize: 16,
-  outline: 'none',
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 20px',
-  borderRadius: 7,
-  border: 'none',
-  background: 'var(--accent)',
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  padding: '6px 14px',
-  borderRadius: 6,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--red-light)',
-  fontSize: 15,
-  cursor: 'pointer',
-};
-
-const badge = (color: string, bg: string): React.CSSProperties => ({
-  display: 'inline-block',
-  padding: '2px 10px',
-  borderRadius: 999,
-  fontSize: 14,
-  fontWeight: 600,
-  background: bg,
-  color,
-});
-
 function Secrets() {
-  const [secrets, setSecrets] = useState<Secret[]>([]);
+  const [secrets, setSecrets] = useState<Secret[] | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [form, setForm] = useState<SecretForm>(emptyForm);
   const [editing, setEditing] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const toast = useToast();
   const { events } = useWebSocket();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -96,8 +53,11 @@ function Secrets() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => setSecrets(Array.isArray(data) ? data : []))
-      .catch((err) => setError(err.message));
+      .then((data) => {
+        setSecrets(Array.isArray(data) ? data : []);
+        setLoadError(null);
+      })
+      .catch((err) => setLoadError(err.message));
   }, []);
 
   const fetchAgents = useCallback(() => {
@@ -127,7 +87,6 @@ function Secrets() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     try {
       const url = editing ? `/api/secrets/${editing}` : '/api/secrets';
       const method = editing ? 'PUT' : 'POST';
@@ -158,23 +117,28 @@ function Secrets() {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || `HTTP ${res.status}`);
       }
+      toast.success(editing ? 'Секрет обновлён' : 'Секрет создан');
       setForm(emptyForm);
       setEditing(null);
       setShowForm(false);
       fetchSecrets();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(`Не удалось сохранить: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this secret?')) return;
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    setConfirmBusy(true);
     try {
-      const res = await fetch(`/api/secrets/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/secrets/${confirmDeleteId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setConfirmDeleteId(null);
       fetchSecrets();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(`Не удалось удалить: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setConfirmBusy(false);
     }
   };
 
@@ -218,201 +182,184 @@ function Secrets() {
     return acc;
   }, {});
 
+  const list = secrets ?? [];
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Сейф</h1>
-        <button
-          style={btnPrimary}
-          onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(!showForm); }}
-        >
-          {showForm ? 'Cancel' : '+ New Secret'}
-        </button>
-      </div>
+      <PageHeader
+        title="Сейф"
+        subtitle="Секреты: зашифрованы AES-256-GCM, передаются агентам как переменные окружения или файлы"
+        actions={
+          <Button onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(!showForm); }}>
+            {showForm ? 'Отмена' : '+ Новый секрет'}
+          </Button>
+        }
+      />
 
-      {error && (
-        <div style={{ ...card, color: 'var(--red-light)', marginBottom: 16 }}>
-          {error}
-        </div>
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 16 }}>
+          Не удалось загрузить секреты: {loadError}
+        </Card>
       )}
 
       {showForm && (
-        <form onSubmit={handleSubmit} style={{ ...card, marginBottom: 20 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>
-            {editing ? 'Edit Secret' : 'Create Secret'}
-          </h3>
-          <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Name</label>
-              <input
-                style={inputStyle}
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="github-token"
-                required
-                disabled={!!editing}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Kind</label>
-              <select
-                style={inputStyle}
-                value={form.kind}
-                onChange={(e) => setForm({ ...form, kind: e.target.value })}
-              >
-                <option value="string">String</option>
-                <option value="file">File</option>
-              </select>
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Description</label>
-              <input
-                style={inputStyle}
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="Optional description"
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>
-              Value {editing && '(leave empty to keep current)'}
-            </label>
-            {form.kind === 'file' ? (
-              <input
-                type="file"
-                onChange={handleFileChange}
-                style={{ fontSize: 16, color: 'var(--text-primary)' }}
-              />
-            ) : (
-              <textarea
-                style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }}
-                value={form.value}
-                onChange={(e) => setForm({ ...form, value: e.target.value })}
-                placeholder="Secret value"
-                required={!editing}
-              />
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 16 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={form.global}
-                onChange={(e) => setForm({ ...form, global: e.target.checked })}
-              />
-              Global (accessible by all agents)
-            </label>
-          </div>
-
-          {agents.length > 0 && !form.global && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 8 }}>
-                Assign to agents
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {agents.map((a) => (
-                  <label
-                    key={a.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 15,
-                      color: 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      padding: '4px 10px',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: form.agent_ids.includes(a.id) ? 'var(--accent-muted)' : 'transparent',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.agent_ids.includes(a.id)}
-                      onChange={() => toggleAgent(a.id)}
-                      style={{ display: 'none' }}
-                    />
-                    {a.name}
-                  </label>
-                ))}
+        <Card style={{ marginBottom: 20 }}>
+          <form onSubmit={handleSubmit}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+              {editing ? 'Изменить секрет' : 'Новый секрет'}
+            </h3>
+            <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <Field label="Название">
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="github-token"
+                  required
+                  disabled={!!editing}
+                />
+              </Field>
+              <Field label="Тип">
+                <Select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+                  <option value="string">строка</option>
+                  <option value="file">файл</option>
+                </Select>
+              </Field>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Описание">
+                  <Input
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    placeholder="Необязательное описание"
+                  />
+                </Field>
               </div>
             </div>
-          )}
 
-          <button type="submit" style={btnPrimary}>
-            {editing ? 'Update Secret' : 'Create Secret'}
-          </button>
-        </form>
+            <div style={{ marginBottom: 12 }}>
+              <Field label={editing ? 'Значение (пусто — оставить прежнее)' : 'Значение'}>
+                {form.kind === 'file' ? (
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    style={{ fontSize: 14, color: 'var(--text-primary)' }}
+                  />
+                ) : (
+                  <Textarea
+                    value={form.value}
+                    onChange={(e) => setForm({ ...form, value: e.target.value })}
+                    placeholder="Значение секрета"
+                    required={!editing}
+                  />
+                )}
+              </Field>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.global}
+                  onChange={(e) => setForm({ ...form, global: e.target.checked })}
+                />
+                Общий (доступен всем агентам)
+              </label>
+            </div>
+
+            {agents.length > 0 && !form.global && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500, marginBottom: 8 }}>
+                  Назначить агентам
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {agents.map((a) => {
+                    const active = form.agent_ids.includes(a.id);
+                    return (
+                      <Button
+                        key={a.id}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        aria-pressed={active}
+                        style={active ? { background: 'var(--accent-muted)', color: 'var(--accent)', borderColor: 'var(--accent)' } : undefined}
+                        onClick={() => toggleAgent(a.id)}
+                      >
+                        {a.name}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <Button type="submit">{editing ? 'Сохранить' : 'Создать'}</Button>
+          </form>
+        </Card>
       )}
 
+      {secrets === null && !loadError && <Skeleton lines={4} />}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {secrets.map((secret) => (
-          <div key={secret.id} style={card}>
+        {list.map((secret) => (
+          <Card key={secret.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>{secret.name}</span>
-                  <span style={badge(
-                    secret.kind === 'string' ? 'var(--accent)' : 'var(--amber)',
-                    secret.kind === 'string' ? 'var(--accent-muted)' : 'var(--amber-muted)',
-                  )}>
-                    {secret.kind}
-                  </span>
-                  {secret.global && (
-                    <span style={badge('var(--green)', 'var(--green-muted)')}>
-                      global
-                    </span>
-                  )}
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>{secret.name}</span>
+                  <Badge tone={secret.kind === 'string' ? 'accent' : 'warn'}>
+                    {secret.kind === 'string' ? 'строка' : 'файл'}
+                  </Badge>
+                  {secret.global && <Badge tone="ok">общий</Badge>}
                 </div>
 
                 {secret.description && (
-                  <div style={{ fontSize: 15, color: 'var(--text-tertiary)', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-tertiary)', marginBottom: 8 }}>
                     {secret.description}
                   </div>
                 )}
 
-                <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'monospace' }}>
+                <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'monospace' }}>
                   {'*'.repeat(12)}
                 </div>
 
                 {secret.agent_ids && secret.agent_ids.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
                     {secret.agent_ids.map((id) => (
-                      <span key={id} style={{
-                        fontSize: 13,
-                        padding: '1px 8px',
-                        borderRadius: 4,
-                        background: 'var(--bg-elevated)',
-                        color: 'var(--text-secondary)',
-                      }}>
-                        {agentNameMap[id] || id}
-                      </span>
+                      <Badge key={id} tone="neutral">{agentNameMap[id] || id}</Badge>
                     ))}
                   </div>
                 )}
               </div>
 
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 16 }}>
-                <button
-                  style={{ ...btnDanger, color: 'var(--text-secondary)' }}
-                  onClick={() => handleEdit(secret)}
-                >
-                  Edit
-                </button>
-                <button style={btnDanger} onClick={() => handleDelete(secret.id)}>
-                  Delete
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => handleEdit(secret)}>Изменить</Button>
+                <Button variant="danger" size="sm" onClick={() => setConfirmDeleteId(secret.id)}>Удалить</Button>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
-        {secrets.length === 0 && !error && (
-          <div style={{ color: 'var(--text-tertiary)', fontSize: 16 }}>No secrets stored</div>
+        {secrets !== null && list.length === 0 && !loadError && (
+          <EmptyState
+            title="Сейф пуст"
+            hint="Секреты хранятся в зашифрованном виде и никогда не показываются агентам напрямую: они подставляются в контейнер как переменные окружения (secret:имя) или файлы."
+            action={
+              <Button onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(true); }}>
+                + Новый секрет
+              </Button>
+            }
+          />
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Удалить секрет?"
+        message="Агенты, которым он назначен, потеряют к нему доступ при следующем запуске."
+        confirmLabel="Удалить"
+        danger
+        busy={confirmBusy}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }
