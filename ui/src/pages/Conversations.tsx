@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import {
+  Badge, Button, Card, EmptyState, Input, PageHeader, Skeleton, Spinner, Textarea, useToast,
+} from '../components/ui';
 
 interface Agent {
   id: string;
@@ -14,61 +17,98 @@ interface Message {
   terminal_reason?: string;
 }
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  boxShadow: 'var(--shadow)',
+// Данные WS-события type=message: id приходит числом (REST отдаёт строкой)
+type WsMessageData = {
+  id: string | number;
+  role: string;
+  text: string;
+  time: string;
+  terminal_reason?: string;
 };
 
 function Conversations() {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<Agent[] | null>(null);
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messages, setMessages] = useState<Message[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [awaiting, setAwaiting] = useState<Record<string, boolean>>({});
+  const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
-  const { events, status: wsStatus } = useWebSocket();
+  const { events } = useWebSocket();
+  const toast = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch('/api/agents/definitions')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        const a: Agent[] = Array.isArray(data) ? data : [];
+        setAgents(a);
+        setSelectedAgentId((cur) => cur ?? a[0]?.id ?? null);
+        setLoadError(null);
+      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
+
+    fetch('/api/agents')
       .then((res) => res.json())
       .then((data) => {
-        const a = Array.isArray(data) ? data : [];
-        setAgents(a);
-        if (a.length > 0 && !selectedAgentId) {
-          setSelectedAgentId(a[0].id);
-        }
+        if (!Array.isArray(data)) return;
+        setRunningIds(new Set(data.map((c: { agent_id: string }) => c.agent_id)));
       })
       .catch(() => {});
-  }, [selectedAgentId]);
+  }, []);
 
   useEffect(() => {
     if (!selectedAgentId) return;
     setSearchQuery('');
     setSearchActive(false);
-    setLoadingMessages(true);
+    setMessages(null);
     fetch(`/api/agents/definitions/${selectedAgentId}/messages`)
       .then((res) => res.json())
       .then((data) => setMessages(Array.isArray(data) ? data : []))
-      .catch(() => setMessages([]))
-      .finally(() => setLoadingMessages(false));
+      .catch(() => setMessages([]));
   }, [selectedAgentId]);
 
+  // Живые события: статусы контейнеров и новые сообщения
   useEffect(() => {
-    if (!selectedAgentId || searchActive) return;
-    const relevant = events.filter(
-      (e) => e.agent_id === selectedAgentId && e.type === 'message'
-    );
-    if (relevant.length === 0) return;
-    const latest = relevant[relevant.length - 1];
-    const msg = latest.data as Message;
-    if (msg && msg.id) {
+    const latest = events[events.length - 1];
+    if (!latest) return;
+    const aid = latest.agent_id;
+    if (!aid) return;
+
+    if (latest.type === 'agent_started') {
+      setRunningIds((prev) => new Set(prev).add(aid));
+      return;
+    }
+    if (latest.type === 'agent_stopped') {
+      setRunningIds((prev) => {
+        const next = new Set(prev);
+        next.delete(aid);
+        return next;
+      });
+      return;
+    }
+    if (latest.type !== 'message') return;
+
+    const d = latest.data as WsMessageData | null;
+    if (!d || d.id === undefined) return;
+    const msg: Message = { ...d, id: String(d.id) };
+
+    if (msg.role === 'assistant') {
+      setAwaiting((prev) => (prev[aid] ? { ...prev, [aid]: false } : prev));
+    }
+    if (aid === selectedAgentId && !searchActive) {
       setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
+        const list = prev ?? [];
+        if (list.some((m) => m.id === msg.id)) return list;
+        return [...list, msg];
       });
     }
   }, [events, selectedAgentId, searchActive]);
@@ -76,6 +116,44 @@ function Conversations() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const draft = selectedAgentId ? (drafts[selectedAgentId] ?? '') : '';
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || !selectedAgentId || sending) return;
+    const agentID = selectedAgentId;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/agents/definitions/${agentID}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || `HTTP ${res.status}`);
+      }
+      setDrafts((prev) => ({ ...prev, [agentID]: '' }));
+      setAwaiting((prev) => ({ ...prev, [agentID]: true }));
+    } catch (err) {
+      toast.error(`Не удалось отправить: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const abort = async () => {
+    if (!selectedAgentId) return;
+    const agentID = selectedAgentId;
+    try {
+      const res = await fetch(`/api/agents/definitions/${agentID}/abort`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAwaiting((prev) => ({ ...prev, [agentID]: false }));
+    } catch (err) {
+      toast.error(`Не удалось отменить: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
 
   const handleSearch = () => {
     if (!selectedAgentId || !searchQuery.trim()) return;
@@ -92,144 +170,141 @@ function Conversations() {
     setSearchQuery('');
     setSearchActive(false);
     if (!selectedAgentId) return;
-    setLoadingMessages(true);
+    setMessages(null);
     fetch(`/api/agents/definitions/${selectedAgentId}/messages`)
       .then((res) => res.json())
       .then((data) => setMessages(Array.isArray(data) ? data : []))
-      .catch(() => setMessages([]))
-      .finally(() => setLoadingMessages(false));
+      .catch(() => setMessages([]));
   };
 
-  const selectedAgent = agents.find((a) => a.id === selectedAgentId);
-
-  const wsColor = wsStatus === 'connected' ? 'var(--green)' : wsStatus === 'connecting' ? 'var(--amber)' : 'var(--red)';
+  const selectedAgent = agents?.find((a) => a.id === selectedAgentId) ?? null;
+  const agentAwaiting = selectedAgentId ? !!awaiting[selectedAgentId] : false;
+  const selectedOnline = selectedAgentId ? runningIds.has(selectedAgentId) : false;
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Связь</h1>
-        <div style={{ display: 'flex', alignItems: 'center', fontSize: 15, color: 'var(--text-tertiary)', gap: 6 }}>
-          <span style={{
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: wsColor,
-            display: 'inline-block',
-          }} />
-          {wsStatus}
-        </div>
-      </div>
+      <PageHeader title="Связь" subtitle="Чат с агентами — история общая с Telegram" />
 
-      <div className="conversations-layout" style={{ display: 'flex', gap: 16, height: 'calc(100vh - 140px)' }}>
-        {/* Agent list */}
-        <div className="conversations-agents" style={{ ...card, width: 200, padding: 6, overflowY: 'auto', flexShrink: 0 }}>
-          {agents.map((agent) => (
-            <div
-              key={agent.id}
-              data-hover={selectedAgentId !== agent.id ? '' : undefined}
-              onClick={() => setSelectedAgentId(agent.id)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 7,
-                cursor: 'pointer',
-                fontSize: 16,
-                fontWeight: selectedAgentId === agent.id ? 600 : 400,
-                background: selectedAgentId === agent.id ? 'var(--accent)' : 'transparent',
-                color: selectedAgentId === agent.id ? '#fff' : 'var(--text-secondary)',
-                marginBottom: 1,
-              }}
-            >
-              {agent.name}
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 16 }}>
+          Не удалось загрузить агентов: {loadError}
+        </Card>
+      )}
+
+      <div className="conversations-layout" style={{ display: 'flex', gap: 16, height: 'calc(100vh - 170px)' }}>
+        {/* Список агентов */}
+        <Card className="conversations-agents" style={{ width: 200, padding: 6, overflowY: 'auto', flexShrink: 0 }}>
+          {agents === null && !loadError && <Skeleton lines={4} />}
+          {(agents ?? []).map((agent) => {
+            const selected = selectedAgentId === agent.id;
+            const online = runningIds.has(agent.id);
+            return (
+              <button
+                key={agent.id}
+                onClick={() => setSelectedAgentId(agent.id)}
+                aria-pressed={selected}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 7,
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontSize: 15,
+                  fontWeight: selected ? 600 : 400,
+                  background: selected ? 'var(--accent)' : 'transparent',
+                  color: selected ? '#fff' : 'var(--text-secondary)',
+                  marginBottom: 1,
+                }}
+              >
+                <span
+                  title={online ? 'Контейнер запущен' : 'Контейнер остановлен'}
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    background: online ? 'var(--green)' : 'var(--text-muted)',
+                  }}
+                />
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {agent.name}
+                </span>
+              </button>
+            );
+          })}
+          {agents !== null && agents.length === 0 && !loadError && (
+            <div style={{ padding: 12, color: 'var(--text-tertiary)', fontSize: 14 }}>
+              Агентов нет — добавьте их в конфигурацию praktor.yaml.
             </div>
-          ))}
-          {agents.length === 0 && (
-            <div style={{ padding: 12, color: 'var(--text-tertiary)', fontSize: 15 }}>No agents</div>
           )}
-        </div>
+        </Card>
 
-        {/* Messages */}
-        <div style={{ ...card, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Чат */}
+        <Card style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 }}>
           <div style={{
-            padding: '14px 20px',
+            padding: '12px 20px',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
+            flexWrap: 'wrap',
           }}>
-            <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--text-primary)' }}>
-              {selectedAgent?.name ?? 'Select an agent'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--text-primary)' }}>
+                {selectedAgent?.name ?? 'Выберите агента'}
+              </span>
+              {selectedAgent && (
+                <Badge tone={selectedOnline ? 'ok' : 'neutral'}>
+                  {selectedOnline ? 'в сети' : 'выключен'}
+                </Badge>
+              )}
+            </div>
             {selectedAgentId && (
               <form
                 onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
                 style={{ display: 'flex', gap: 6, alignItems: 'center' }}
               >
-                <input
-                  type="text"
+                <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search messages..."
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg-elevated)',
-                    color: 'var(--text-primary)',
-                    fontSize: 14,
-                    width: 200,
-                    outline: 'none',
-                  }}
+                  placeholder="Поиск по истории…"
+                  style={{ width: 190, padding: '5px 10px', fontSize: 14 }}
                 />
-                <button
-                  type="submit"
-                  disabled={isSearching || !searchQuery.trim()}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 6,
-                    border: '1px solid var(--border)',
-                    background: 'var(--accent)',
-                    color: '#fff',
-                    fontSize: 14,
-                    cursor: 'pointer',
-                    opacity: isSearching || !searchQuery.trim() ? 0.5 : 1,
-                  }}
-                >
-                  {isSearching ? '...' : 'Search'}
-                </button>
+                <Button type="submit" size="sm" variant="secondary" busy={isSearching} disabled={!searchQuery.trim()}>
+                  Найти
+                </Button>
                 {searchActive && (
-                  <button
-                    type="button"
-                    onClick={clearSearch}
-                    style={{
-                      padding: '5px 10px',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'var(--bg-elevated)',
-                      color: 'var(--text-secondary)',
-                      fontSize: 14,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Clear
-                  </button>
+                  <Button size="sm" variant="secondary" onClick={clearSearch}>
+                    Сбросить
+                  </Button>
                 )}
               </form>
             )}
           </div>
+
           <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {searchActive && (
               <div style={{ color: 'var(--text-tertiary)', fontSize: 14, marginBottom: 8 }}>
-                Search results for "{searchQuery}" ({messages.length} found)
+                Результаты поиска «{searchQuery}» — {messages?.length ?? 0}
               </div>
             )}
-            {(loadingMessages || isSearching) && <div style={{ color: 'var(--text-tertiary)', fontSize: 16 }}>Loading...</div>}
-            {!loadingMessages && !isSearching && messages.length === 0 && (
-              <div style={{ color: 'var(--text-tertiary)', fontSize: 16 }}>
-                {searchActive ? 'No messages found' : 'No messages yet'}
-              </div>
+            {(messages === null || isSearching) && <Skeleton lines={4} />}
+            {messages !== null && !isSearching && messages.length === 0 && (
+              searchActive ? (
+                <div style={{ color: 'var(--text-tertiary)', fontSize: 15 }}>Ничего не найдено</div>
+              ) : (
+                <EmptyState
+                  title="Сообщений ещё нет"
+                  hint="Напишите агенту — история чата общая с Telegram, ответ придёт сюда."
+                />
+              )
             )}
-            {messages.map((msg) => {
+            {!isSearching && (messages ?? []).map((msg) => {
               const isAssistant = msg.role === 'assistant';
               return (
                 <div
@@ -241,34 +316,71 @@ function Conversations() {
                     borderRadius: 10,
                     background: isAssistant ? 'var(--accent-muted)' : 'var(--bg-elevated)',
                     borderLeft: isAssistant ? '3px solid var(--accent)' : 'none',
-                    fontSize: 16,
+                    fontSize: 15,
                   }}
                 >
-                  <div style={{ fontSize: 14, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-                    <span style={{ color: isAssistant ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>{msg.role}</span>
+                  <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                    <span style={{ color: isAssistant ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: 600 }}>
+                      {isAssistant ? (selectedAgent?.name ?? 'агент') : 'вы'}
+                    </span>
                     {msg.time && <span style={{ marginLeft: 8 }}>{msg.time}</span>}
                   </div>
-                  <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.text}</div>
+                  <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {msg.text}
+                  </div>
                   {msg.terminal_reason && msg.terminal_reason !== 'completed' && (
-                    <div style={{
-                      display: 'inline-block',
-                      marginTop: 6,
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      background: 'var(--amber-muted)',
-                      color: 'var(--amber)',
-                    }}>
+                    <Badge tone="warn" style={{ marginTop: 6 }}>
                       {msg.terminal_reason.replace(/_/g, ' ')}
-                    </div>
+                    </Badge>
                   )}
                 </div>
               );
             })}
+            {agentAwaiting && (
+              <div style={{
+                alignSelf: 'flex-start',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 14px',
+                borderRadius: 10,
+                background: 'var(--accent-muted)',
+                fontSize: 14,
+                color: 'var(--text-secondary)',
+              }}>
+                <Spinner size={12} />
+                печатает…
+                <Button size="sm" variant="secondary" onClick={abort}>Отменить</Button>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
-        </div>
+
+          {selectedAgentId && (
+            <form
+              onSubmit={(e) => { e.preventDefault(); send(); }}
+              style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: '1px solid var(--border)' }}
+            >
+              <Textarea
+                rows={2}
+                value={draft}
+                placeholder="Сообщение агенту…"
+                title="Enter — отправить, Shift+Enter — перенос строки"
+                onChange={(e) => setDrafts((prev) => ({ ...prev, [selectedAgentId]: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                style={{ flex: 1, resize: 'none' }}
+              />
+              <Button type="submit" busy={sending} disabled={!draft.trim()}>
+                Отправить
+              </Button>
+            </form>
+          )}
+        </Card>
       </div>
     </div>
   );
