@@ -19,7 +19,7 @@ type ToastApi = {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
-const TOAST_TTL_MS = 4000;
+const TOAST_TTL_MS: Record<ToastItem['kind'], number> = { success: 4000, error: 8000 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -27,8 +27,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const push = useCallback((kind: ToastItem['kind'], text: string) => {
     const id = nextId.current++;
-    setItems((prev) => [...prev, { id, kind, text }]);
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), TOAST_TTL_MS);
+    setItems((prev) =>
+      prev.some((t) => t.kind === kind && t.text === text) ? prev : [...prev, { id, kind, text }]
+    );
+    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), TOAST_TTL_MS[kind]);
   }, []);
 
   const api = useMemo<ToastApi>(
@@ -45,7 +47,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {createPortal(
         <div className="ui-toasts" aria-live="polite">
           {items.map((t) => (
-            <div key={t.id} className={`ui-toast ui-toast--${t.kind}`}>
+            <div key={t.id} className={`ui-toast ui-toast--${t.kind}`} role={t.kind === 'error' ? 'alert' : 'status'}>
               {t.text}
             </div>
           ))}

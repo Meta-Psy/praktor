@@ -11,12 +11,32 @@ type ModalProps = {
 
 const FOCUSABLE = 'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])';
 
+// Счётчик открытых модалок общий на модуль: overflow восстанавливается,
+// только когда закрывается последняя (иначе confirm поверх формы снимал бы лок раньше времени)
+let openModals = 0;
+let prevBodyOverflow = '';
+
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const boxRef = useRef<HTMLDivElement>(null);
 
+  // Scroll-lock: пока открыта хотя бы одна модалка, body не прокручивается
   useEffect(() => {
     if (!open) return;
+    if (openModals === 0) prevBodyOverflow = document.body.style.overflow;
+    openModals++;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      openModals--;
+      if (openModals === 0) document.body.style.overflow = prevBodyOverflow;
+    };
+  }, [open]);
+
+  // Фокус на первый элемент; при закрытии — возврат туда, откуда открыли
+  useEffect(() => {
+    if (!open) return;
+    const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     boxRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    return () => { prevFocus?.focus(); };
   }, [open]);
 
   useEffect(() => {

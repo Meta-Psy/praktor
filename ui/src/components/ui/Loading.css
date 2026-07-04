@@ -16,3 +16,7 @@
 .ui-skeleton__line:nth-child(2n) { width: 85%; }
 .ui-skeleton__line:nth-child(3n) { width: 65%; }
 @keyframes ui-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ui-spinner { animation-duration: 1.6s; }
+  .ui-skeleton__line { animation: none; background: var(--bg-elevated); }
+}
