@@ -4,24 +4,16 @@ import DOMPurify from 'dompurify';
 import { awaitingPlans, type PlanItem } from './planStatus';
 import type { IntakeList } from './intakeStatus';
 import { approvePlan, rejectPlan } from './actions';
-
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 10, padding: 16, boxShadow: 'var(--shadow)', marginBottom: 12,
-};
-const btn: React.CSSProperties = {
-  padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
-  cursor: 'pointer', fontSize: 14, marginRight: 8,
-};
+import { Button, Card, ConfirmDialog, EmptyState, Skeleton, Textarea, useToast } from '../components/ui';
 
 export function PlansContent() {
-  const [items, setItems] = useState<PlanItem[]>([]);
+  const [items, setItems] = useState<PlanItem[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [planHtml, setPlanHtml] = useState('');
   const [confirm, setConfirm] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useToast();
 
   const fetchList = useCallback(() => {
     fetch('/api/intake')
@@ -55,25 +47,32 @@ export function PlansContent() {
 
   const doAction = useCallback(async () => {
     if (!confirm) return;
-    setBusy(true); setMsg(null);
+    setBusy(true);
     try {
       if (confirm.action === 'approve') await approvePlan(confirm.id);
       else await rejectPlan(confirm.id, reason);
       setConfirm(null); setReason(''); setOpenId(null);
       fetchList();
     } catch (e) {
-      setMsg((e as Error).message);
+      toast.error(`Не удалось выполнить: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
-  }, [confirm, reason, fetchList]);
+  }, [confirm, reason, fetchList, toast]);
+
+  const list = items ?? [];
 
   return (
     <div>
-      {msg && <div style={{ ...card, color: 'crimson' }}>{msg}</div>}
-      {items.length === 0 && <div style={card}>Нет планов, ожидающих одобрения.</div>}
-      {items.map((it) => (
-        <div key={it.id} style={card}>
+      {items === null && <Skeleton lines={3} />}
+      {items !== null && list.length === 0 && (
+        <EmptyState
+          title="Нет планов, ожидающих одобрения"
+          hint="Когда агент подготовит план по задаче из Входящих, он появится здесь на подпись."
+        />
+      )}
+      {list.map((it) => (
+        <Card key={it.id} style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <strong>{it.raw_text.split('\n')[0]}</strong>
@@ -81,9 +80,9 @@ export function PlansContent() {
                 {it.target_project || '—'} · {it.created_at.slice(0, 10)}
               </div>
             </div>
-            <button style={btn} onClick={() => openPlan(it.id)}>
+            <Button variant="secondary" size="sm" onClick={() => openPlan(it.id)}>
               {openId === it.id ? 'Скрыть' : 'План'}
-            </button>
+            </Button>
           </div>
           {openId === it.id && (
             <>
@@ -91,56 +90,33 @@ export function PlansContent() {
                 style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}
                 dangerouslySetInnerHTML={{ __html: planHtml || '<p style="color:var(--text-secondary)">Загрузка…</p>' }}
               />
-              <div style={{ marginTop: 12 }}>
-                <button
-                  style={{ ...btn, background: 'var(--accent)', color: '#fff' }}
-                  onClick={() => setConfirm({ id: it.id, action: 'approve' })}
-                >
-                  Одобрить
-                </button>
-                <button style={btn} onClick={() => setConfirm({ id: it.id, action: 'reject' })}>
-                  Отклонить
-                </button>
+              <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                <Button onClick={() => setConfirm({ id: it.id, action: 'approve' })}>Одобрить</Button>
+                <Button variant="secondary" onClick={() => setConfirm({ id: it.id, action: 'reject' })}>Отклонить</Button>
               </div>
             </>
           )}
-        </div>
+        </Card>
       ))}
 
-      {confirm && (
-        <div
-          role="dialog"
-          aria-modal={true}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-          }}
-        >
-          <div style={{ ...card, maxWidth: 420, marginBottom: 0 }}>
-            <p style={{ marginTop: 0 }}>
-              {confirm.action === 'approve'
-                ? 'Одобрить план? Локальный CC начнёт исполнение.'
-                : 'Отклонить план?'}
-            </p>
-            {confirm.action === 'reject' && (
-              <textarea
-                placeholder="Причина (что переделать)"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                style={{ width: '100%', minHeight: 80, marginBottom: 8 }}
-              />
-            )}
-            <div>
-              <button style={{ ...btn, background: 'var(--accent)', color: '#fff' }} disabled={busy} onClick={doAction}>
-                {busy ? '…' : 'Подтвердить'}
-              </button>
-              <button style={btn} disabled={busy} onClick={() => { setConfirm(null); setReason(''); setMsg(null); }}>
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirm !== null}
+        title={confirm?.action === 'approve' ? 'Одобрить план?' : 'Отклонить план?'}
+        message={confirm?.action === 'approve'
+          ? 'Локальный CC начнёт исполнение.'
+          : (
+            <Textarea
+              placeholder="Причина (что переделать)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          )}
+        confirmLabel={confirm?.action === 'approve' ? 'Одобрить' : 'Отклонить'}
+        danger={confirm?.action === 'reject'}
+        busy={busy}
+        onConfirm={doAction}
+        onCancel={() => { setConfirm(null); setReason(''); }}
+      />
     </div>
   );
 }
