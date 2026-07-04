@@ -44,6 +44,13 @@ type ghWriter interface {
 	DispatchWorkflow(ctx context.Context, repo, workflow, ref string) error
 }
 
+// chatSender is the orchestrator surface used by the web chat endpoints
+// (mockable in tests).
+type chatSender interface {
+	HandleMessage(ctx context.Context, agentID, text string, meta map[string]string) error
+	AbortSession(ctx context.Context, agentID string) error
+}
+
 type Server struct {
 	store      *store.Store
 	bus        *natsbus.Bus
@@ -77,6 +84,8 @@ type Server struct {
 	intakeQueue intakeWriter  // S2 queue writer (web POST)
 	transcriber transcriber   // S2 STT for web voice
 
+	chat chatSender // Web chat orchestrator
+
 	radarFreshnessDays int // S5 radar is_new window (days)
 }
 
@@ -95,6 +104,7 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 		startedAt:  time.Now(),
 		sessions:   make(map[string]time.Time),
 	}
+	srv.chat = orch
 	srv.projects = projects
 	srv.deploys = newDeployStore()
 	if len(srv.projects) > 0 {
