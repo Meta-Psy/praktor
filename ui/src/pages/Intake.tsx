@@ -35,6 +35,14 @@ export function IntakeContent() {
     return () => clearInterval(id);
   }, [fetchList]);
 
+  useEffect(() => {
+    return () => {
+      if (recorder.current && recorder.current.state !== 'inactive') {
+        recorder.current.stop(); // onstop освобождает дорожки микрофона
+      }
+    };
+  }, []);
+
   const startRec = useCallback(async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mr = new MediaRecorder(stream);
