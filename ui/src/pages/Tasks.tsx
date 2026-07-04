@@ -107,6 +107,7 @@ function Tasks() {
     if (events.length === 0) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(fetchTasks, 500);
+    return () => clearTimeout(debounceRef.current);
   }, [events.length, fetchTasks]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,7 +165,6 @@ function Tasks() {
   // Оптимистичное переключение с откатом при ошибке (спека §6)
   const handleToggle = async (task: Task) => {
     if (task.status === 'completed') return;
-    const prev = tasks;
     const nextEnabled = !task.enabled;
     setTasks((ts) => (ts ?? []).map((t) =>
       t.id === task.id ? { ...t, enabled: nextEnabled, status: nextEnabled ? 'active' : 'paused' } : t,
@@ -178,7 +178,11 @@ function Tasks() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       fetchTasks();
     } catch (err) {
-      setTasks(prev);
+      // Откат только своей задачи: снимок всего массива затёр бы обновления,
+      // пришедшие от WS-рефетча за время запроса
+      setTasks((ts) => (ts ?? []).map((t) =>
+        t.id === task.id ? { ...t, enabled: task.enabled, status: task.status } : t,
+      ));
       toast.error(`Не удалось переключить: ${err instanceof Error ? err.message : String(err)}`);
     }
   };

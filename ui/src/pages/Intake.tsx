@@ -35,8 +35,12 @@ export function IntakeContent() {
     return () => clearInterval(id);
   }, [fetchList]);
 
+  const mounted = useRef(true);
+
   useEffect(() => {
+    mounted.current = true;
     return () => {
+      mounted.current = false;
       if (recorder.current && recorder.current.state !== 'inactive') {
         recorder.current.stop(); // onstop освобождает дорожки микрофона
       }
@@ -44,7 +48,19 @@ export function IntakeContent() {
   }, []);
 
   const startRec = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      toast.error(`Микрофон недоступен: ${(e as Error).message}`);
+      return;
+    }
+    // Компонент размонтировали, пока ждали разрешение — cleanup уже отработал,
+    // дорожки нужно остановить здесь, иначе поток утечёт
+    if (!mounted.current) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
     const mr = new MediaRecorder(stream);
     chunks.current = [];
     mr.ondataavailable = (e) => chunks.current.push(e.data);
@@ -55,7 +71,7 @@ export function IntakeContent() {
     recorder.current = mr;
     mr.start();
     setRecording(true);
-  }, []);
+  }, [toast]);
 
   const stopRec = useCallback(() => {
     recorder.current?.stop();
