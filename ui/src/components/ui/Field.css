@@ -13,3 +13,4 @@
 }
 .ui-input:focus { outline: none; border-color: var(--accent); }
 .ui-input--area { resize: vertical; min-height: 90px; }
+.ui-input:disabled { opacity: 0.55; cursor: not-allowed; }
