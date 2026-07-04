@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { WsIndicator } from './components/WsIndicator';
@@ -18,8 +18,7 @@ const Swarms = lazy(() => import('./pages/Swarms'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Projects = lazy(() => import('./pages/Projects'));
 const Portfolio = lazy(() => import('./pages/Portfolio'));
-const Intake = lazy(() => import('./pages/Intake'));
-const Plans = lazy(() => import('./pages/Plans'));
+const Reception = lazy(() => import('./pages/Reception'));
 const Catalog = lazy(() => import('./pages/Catalog'));
 const Radar = lazy(() => import('./pages/Radar'));
 const Intel = lazy(() => import('./pages/Intel'));
@@ -315,8 +314,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/intake" element={<Intake />} />
-            <Route path="/plans" element={<Plans />} />
+            <Route path="/intake" element={<Reception />} />
+            <Route path="/plans" element={<Navigate to="/intake?tab=plans" replace />} />
             <Route path="/catalog" element={<Catalog />} />
             <Route path="/radar" element={<Radar />} />
             <Route path="/intel" element={<Intel />} />

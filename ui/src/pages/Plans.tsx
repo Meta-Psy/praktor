@@ -14,7 +14,7 @@ const btn: React.CSSProperties = {
   cursor: 'pointer', fontSize: 14, marginRight: 8,
 };
 
-function Plans() {
+export function PlansContent() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [planHtml, setPlanHtml] = useState('');
@@ -69,8 +69,7 @@ function Plans() {
   }, [confirm, reason, fetchList]);
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Планы на одобрение</h1>
+    <div>
       {msg && <div style={{ ...card, color: 'crimson' }}>{msg}</div>}
       {items.length === 0 && <div style={card}>Нет планов, ожидающих одобрения.</div>}
       {items.map((it) => (
@@ -145,5 +144,3 @@ function Plans() {
     </div>
   );
 }
-
-export default Plans;
