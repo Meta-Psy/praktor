@@ -166,4 +166,16 @@ describe("useWebSocket", () => {
     spy.mockRestore();
   });
 
+  it("не переподключается после размонтирования", () => {
+    const { unmount } = renderHook(() => useWebSocket(), { wrapper });
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
 });

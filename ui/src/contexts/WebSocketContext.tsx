@@ -54,6 +54,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
 
     ws.onclose = () => {
+      if (wsRef.current !== ws) return; // закрыт cleanup'ом или заменён новым сокетом — не переподключаться
       setStatus('disconnected');
       wsRef.current = null;
       reconnectTimer.current = setTimeout(connect, 3000);
@@ -68,7 +69,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     connect();
     return () => {
       clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      wsRef.current = null;
+      ws?.close();
     };
   }, [connect]);
 
