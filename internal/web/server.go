@@ -56,6 +56,7 @@ type Server struct {
 	bus        *natsbus.Bus
 	nats       *natsbus.Client
 	orch       *agent.Orchestrator
+	chat       chatSender
 	registry   *registry.Registry
 	router     *router.Router
 	swarmCoord *swarm.Coordinator
@@ -83,8 +84,6 @@ type Server struct {
 	intakeCache *intakeCache  // S2 intake cache
 	intakeQueue intakeWriter  // S2 queue writer (web POST)
 	transcriber transcriber   // S2 STT for web voice
-
-	chat chatSender // Web chat orchestrator
 
 	radarFreshnessDays int // S5 radar is_new window (days)
 }
