@@ -68,6 +68,14 @@ type mediaGroupBuffer struct {
 	timer    *time.Timer
 }
 
+// webOriginated reports whether an orchestrator output originated from the
+// Mission Control web chat. Such replies stay in the web UI and must not be
+// delivered to Telegram — without this check the chatAgent fallback below
+// would route them to the last chat that talked to the agent.
+func webOriginated(meta map[string]string) bool {
+	return meta["origin"] == "web"
+}
+
 func NewBot(cfg config.TelegramConfig, orch *agent.Orchestrator, rtr *router.Router, sc *swarm.Coordinator, reg *registry.Registry, bus *natsbus.Bus, s *store.Store, speechClient *speech.Client, speechCfg config.SpeechConfig) (*Bot, error) {
 	bot, err := telego.NewBot(cfg.Token)
 	if err != nil {
@@ -106,6 +114,9 @@ func NewBot(cfg config.TelegramConfig, orch *agent.Orchestrator, rtr *router.Rou
 
 	// Register output listener to send responses back to Telegram
 	orch.OnOutput(func(agentID, content string, meta map[string]string) {
+		if webOriginated(meta) {
+			return
+		}
 		// Try to get chat_id from meta
 		chatIDStr := ""
 		if meta != nil {

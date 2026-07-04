@@ -31,6 +31,8 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/agents/capabilities", s.handleCapabilities)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/messages", s.getAgentMessages)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/messages/search", s.searchAgentMessages)
+	mux.HandleFunc("POST /api/agents/definitions/{id}/message", s.sendAgentMessage)
+	mux.HandleFunc("POST /api/agents/definitions/{id}/abort", s.abortAgent)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/agent-md", s.getAgentMD)
 	mux.HandleFunc("PUT /api/agents/definitions/{id}/agent-md", s.updateAgentMD)
 	mux.HandleFunc("GET /api/agents/definitions/{id}/extensions", s.getAgentExtensions)
