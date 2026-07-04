@@ -202,6 +202,8 @@ GET            /api/auth/check                       # Session validation (publi
 GET            /api/agents/definitions              # List agent definitions
 GET            /api/agents/definitions/{id}          # Agent details
 GET            /api/agents/definitions/{id}/messages # Message history
+POST           /api/agents/definitions/{id}/message  # Web chat: send message to agent queue (reply not delivered to Telegram)
+POST           /api/agents/definitions/{id}/abort    # Abort active run + drain queue (web analogue of /stop)
 GET            /api/agents                           # Active agent containers
 GET/POST       /api/tasks                            # List/create scheduled tasks
 PUT/DELETE     /api/tasks/{id}                       # Update/delete task
