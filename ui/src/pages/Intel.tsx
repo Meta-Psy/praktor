@@ -63,7 +63,7 @@ function IntelCard({ src }: { src: IntelSource }) {
   );
 }
 
-function Intel() {
+export function IntelContent() {
   const [sources, setSources] = useState<IntelSource[]>([]);
 
   const fetchData = useCallback(() => {
@@ -75,12 +75,10 @@ function Intel() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Intel</h1>
+    <div>
       {sources.length === 0 && <div style={card}>Нет источников или снимков.</div>}
       {sources.map((s) => <IntelCard key={s.key} src={s} />)}
     </div>
   );
 }
 
-export default Intel;

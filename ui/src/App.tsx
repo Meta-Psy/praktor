@@ -20,8 +20,7 @@ const Projects = lazy(() => import('./pages/Projects'));
 const Portfolio = lazy(() => import('./pages/Portfolio'));
 const Reception = lazy(() => import('./pages/Reception'));
 const Catalog = lazy(() => import('./pages/Catalog'));
-const Radar = lazy(() => import('./pages/Radar'));
-const Intel = lazy(() => import('./pages/Intel'));
+const Recon = lazy(() => import('./pages/Recon'));
 
 const navGroups = [
   {
@@ -317,8 +316,8 @@ function App() {
             <Route path="/intake" element={<Reception />} />
             <Route path="/plans" element={<Navigate to="/intake?tab=plans" replace />} />
             <Route path="/catalog" element={<Catalog />} />
-            <Route path="/radar" element={<Radar />} />
-            <Route path="/intel" element={<Intel />} />
+            <Route path="/radar" element={<Recon />} />
+            <Route path="/intel" element={<Navigate to="/radar?tab=intel" replace />} />
             <Route path="/user" element={<UserProfile />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/conversations" element={<Conversations />} />

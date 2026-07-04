@@ -32,7 +32,7 @@ function RadarRow({ it }: { it: RadarItem }) {
   );
 }
 
-function Radar() {
+export function RadarContent() {
   const [items, setItems] = useState<RadarItem[]>([]);
 
   const fetchData = useCallback(() => {
@@ -44,12 +44,10 @@ function Radar() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Радар экосистемы</h1>
+    <div>
       {items.length === 0 && <div style={card}>Радар пуст или выключен.</div>}
       {items.map((it) => <RadarRow key={it.full_name} it={it} />)}
     </div>
   );
 }
 
-export default Radar;
