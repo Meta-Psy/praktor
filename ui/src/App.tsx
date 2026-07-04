@@ -3,6 +3,7 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { WsIndicator } from './components/WsIndicator';
+import { Spinner } from './components/ui';
 import {
   IconDashboard, IconAgents, IconConversations, IconTasks, IconSwarms,
   IconSecrets, IconUser, IconGitHub, IconSun, IconMoon, IconLogout,
@@ -308,7 +309,7 @@ function App() {
         maxHeight: '100vh',
         minHeight: '100vh',
       }}>
-        <Suspense fallback={null}>
+        <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={24} /></div>}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/projects" element={<Projects />} />
