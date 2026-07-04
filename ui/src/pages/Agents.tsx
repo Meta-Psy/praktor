@@ -89,7 +89,7 @@ function Agents() {
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 28, color: 'var(--text-primary)' }}>Agents</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 28, color: 'var(--text-primary)' }}>Агенты</h1>
 
       {error && (
         <div style={{ ...card, color: 'var(--red-light)', marginBottom: 16, cursor: 'default' }}>

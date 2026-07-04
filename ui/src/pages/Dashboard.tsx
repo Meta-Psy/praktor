@@ -49,7 +49,7 @@ function Dashboard() {
   if (error) {
     return (
       <div>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: 'var(--text-primary)' }}>Dashboard</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: 'var(--text-primary)' }}>Обстановка</h1>
         <div style={{ ...card, color: 'var(--red-light)' }}>
           Failed to load status: {error}
         </div>
@@ -60,7 +60,7 @@ function Dashboard() {
   if (!status) {
     return (
       <div>
-        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: 'var(--text-primary)' }}>Dashboard</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, color: 'var(--text-primary)' }}>Обстановка</h1>
         <div style={{ color: 'var(--text-tertiary)', fontSize: 17 }}>Loading...</div>
       </div>
     );
@@ -75,7 +75,7 @@ function Dashboard() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Dashboard</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Обстановка</h1>
         {status.version && (
           <span style={{
             fontSize: 15,

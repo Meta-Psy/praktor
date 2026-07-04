@@ -41,7 +41,7 @@ function Portfolio() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 8 }}>Portfolio</h1>
+      <h1 style={{ marginBottom: 8 }}>Задачи</h1>
       {doc.stale && (
         <div style={{ color: '#b8860b', marginBottom: 12 }}>
           ⚠ stale data{doc.fetch_error ? `: ${doc.fetch_error}` : ''}

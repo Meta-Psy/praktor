@@ -107,7 +107,7 @@ function Conversations() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Conversations</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Связь</h1>
         <div style={{ display: 'flex', alignItems: 'center', fontSize: 15, color: 'var(--text-tertiary)', gap: 6 }}>
           <span style={{
             width: 7,
