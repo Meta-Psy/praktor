@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import SwarmGraph, { type SwarmLaunchData } from '../components/SwarmGraph';
+import {
+  Badge, Button, Card, ConfirmDialog, EmptyState, PageHeader, Skeleton, useToast,
+} from '../components/ui';
 
 interface SwarmAgentResult {
   role: string;
@@ -28,39 +31,28 @@ export interface Swarm {
   completed_at?: string;
 }
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: 20,
-  boxShadow: 'var(--shadow)',
+const STATUS_TONE: Record<string, 'ok' | 'accent' | 'danger' | 'warn'> = {
+  running: 'ok',
+  completed: 'accent',
+  failed: 'danger',
+  error: 'danger',
+  pending: 'warn',
 };
 
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 20px',
-  borderRadius: 7,
-  border: 'none',
-  background: 'var(--accent)',
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: 600,
-  cursor: 'pointer',
+const STATUS_LABEL: Record<string, string> = {
+  running: 'выполняется',
+  completed: 'завершён',
+  failed: 'сбой',
+  error: 'ошибка',
+  pending: 'ожидает',
 };
 
-const btnSmall: React.CSSProperties = {
-  padding: '4px 12px',
-  borderRadius: 6,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: 14,
-  cursor: 'pointer',
-};
-
-const statusColors: Record<string, { color: string; bg: string }> = {
+// Цвета статусов для SVG-мини-топологии (Badge в SVG не вставить)
+const SVG_STATUS: Record<string, { color: string; bg: string }> = {
   running: { color: 'var(--green)', bg: 'var(--green-muted)' },
   completed: { color: 'var(--accent)', bg: 'var(--accent-muted)' },
   failed: { color: 'var(--red)', bg: 'var(--red-muted)' },
+  error: { color: 'var(--red)', bg: 'var(--red-muted)' },
   pending: { color: 'var(--amber)', bg: 'var(--amber-muted)' },
 };
 
@@ -84,11 +76,14 @@ export function swarmToLaunchData(swarm: Swarm): SwarmLaunchData {
 }
 
 function Swarms() {
-  const [swarms, setSwarms] = useState<Swarm[]>([]);
+  const [swarms, setSwarms] = useState<Swarm[] | null>(null);
   const [view, setView] = useState<'list' | 'create' | 'edit'>('list');
   const [editData, setEditData] = useState<SwarmLaunchData | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const toast = useToast();
   const { events } = useWebSocket();
 
   const fetchSwarms = useCallback(() => {
@@ -97,8 +92,11 @@ function Swarms() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => setSwarms(Array.isArray(data) ? data : []))
-      .catch((err) => setError(err.message));
+      .then((data) => {
+        setSwarms(Array.isArray(data) ? data : []);
+        setLoadError(null);
+      })
+      .catch((err) => setLoadError(err.message));
   }, []);
 
   useEffect(() => {
@@ -116,7 +114,6 @@ function Swarms() {
   }, [events, fetchSwarms]);
 
   const launchSwarm = async (data: SwarmLaunchData) => {
-    setError(null);
     try {
       const res = await fetch('/api/swarms', {
         method: 'POST',
@@ -131,7 +128,7 @@ function Swarms() {
       setEditData(null);
       fetchSwarms();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(`Не удалось запустить отряд: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -144,200 +141,192 @@ function Swarms() {
     setView('edit');
   };
 
-  const deleteSwarm = async (id: string) => {
-    setError(null);
+  const confirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    setConfirmBusy(true);
     try {
-      const res = await fetch(`/api/swarms/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/swarms/${confirmDeleteId}`, { method: 'DELETE' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         throw new Error(body.error || `HTTP ${res.status}`);
       }
+      setConfirmDeleteId(null);
       fetchSwarms();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(`Не удалось удалить: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setConfirmBusy(false);
     }
   };
 
-  const handleEditLaunch = (data: SwarmLaunchData) => {
-    launchSwarm(data);
-  };
+  const list = swarms ?? [];
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Отряды</h1>
-        <button
-          style={btnPrimary}
-          onClick={() => {
-            if (view === 'list') {
-              setEditData(null);
-              setView('create');
-            } else {
-              setView('list');
-              setEditData(null);
-            }
-          }}
-        >
-          {view === 'list' ? '+ New Swarm' : 'Back to List'}
-        </button>
-      </div>
+      <PageHeader
+        title="Отряды"
+        subtitle="Группы агентов: параллельно, конвейером или в совместном чате"
+        actions={
+          <Button
+            onClick={() => {
+              if (view === 'list') {
+                setEditData(null);
+                setView('create');
+              } else {
+                setView('list');
+                setEditData(null);
+              }
+            }}
+          >
+            {view === 'list' ? '+ Новый отряд' : 'К списку'}
+          </Button>
+        }
+      />
 
-      {error && (
-        <div style={{ ...card, color: 'var(--red-light)', marginBottom: 16 }}>
-          {error}
-        </div>
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 16 }}>
+          Не удалось загрузить отряды: {loadError}
+        </Card>
       )}
 
       {view === 'create' ? (
         <SwarmGraph onLaunch={launchSwarm} />
       ) : view === 'edit' && editData ? (
-        <SwarmGraph
-          onLaunch={handleEditLaunch}
-          initialData={editData}
-          launchLabel="Save & Launch"
-        />
+        <SwarmGraph onLaunch={launchSwarm} initialData={editData} launchLabel="Сохранить и запустить" />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {swarms.map((swarm) => {
+          {swarms === null && !loadError && <Skeleton lines={4} />}
+          {list.map((swarm) => {
             const isExpanded = expanded === swarm.id;
-            const sc = statusColors[swarm.status] ?? { color: 'var(--text-tertiary)', bg: 'var(--accent-muted)' };
             const agents = swarm.agents || [];
             const results = swarm.results || [];
             const synapses = swarm.synapses || [];
 
             return (
-              <div key={swarm.id} style={card}>
+              <Card key={swarm.id}>
                 <div
+                  role="button"
+                  tabIndex={0}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                   onClick={() => setExpanded(isExpanded ? null : swarm.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(isExpanded ? null : swarm.id); }
+                  }}
                 >
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                      <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {swarm.name || 'Swarm'}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 14,
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          background: sc.bg,
-                          color: sc.color,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {swarm.status}
-                      </span>
+                      <span style={{ fontSize: 16, fontWeight: 600 }}>{swarm.name || 'Отряд'}</span>
+                      <Badge tone={STATUS_TONE[swarm.status] ?? 'neutral'}>
+                        {STATUS_LABEL[swarm.status] ?? swarm.status}
+                      </Badge>
                       {swarm.lead_agent && (
-                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                          Lead: {swarm.lead_agent}
+                        <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                          Ведущий: {swarm.lead_agent}
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 15, color: 'var(--text-secondary)', maxWidth: 600 }}>
-                      {swarm.task.length > 120 ? swarm.task.slice(0, 120) + '...' : swarm.task}
+                    <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', maxWidth: 600 }}>
+                      {swarm.task.length > 120 ? swarm.task.slice(0, 120) + '…' : swarm.task}
                     </div>
-                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 16 }}>
-                      {agents.length > 0 && <span>{agents.length} agent(s)</span>}
-                      {synapses.length > 0 && <span>{synapses.length} connection(s)</span>}
-                      {swarm.started_at && <span>Started: {swarm.started_at}</span>}
-                      {swarm.completed_at && <span>Completed: {swarm.completed_at}</span>}
+                    <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      {agents.length > 0 && <span>агентов: {agents.length}</span>}
+                      {synapses.length > 0 && <span>связей: {synapses.length}</span>}
+                      {swarm.started_at && <span>Запущен: {swarm.started_at}</span>}
+                      {swarm.completed_at && <span>Завершён: {swarm.completed_at}</span>}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 12 }}>
                     {swarm.status !== 'running' && (
                       <>
-                        <button
-                          style={btnSmall}
-                          title="Replay"
-                          onClick={(e) => { e.stopPropagation(); replaySwarm(swarm); }}
-                        >
-                          Replay
-                        </button>
-                        <button
-                          style={btnSmall}
-                          title="Edit"
-                          onClick={(e) => { e.stopPropagation(); editSwarm(swarm); }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          style={{ ...btnSmall, color: 'var(--red)', borderColor: 'var(--red)' }}
-                          title="Delete"
-                          onClick={(e) => { e.stopPropagation(); deleteSwarm(swarm.id); }}
-                        >
-                          Delete
-                        </button>
+                        <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); replaySwarm(swarm); }}>
+                          Повторить
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); editSwarm(swarm); }}>
+                          Изменить
+                        </Button>
+                        <Button variant="danger" size="sm" onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(swarm.id); }}>
+                          Удалить
+                        </Button>
                       </>
                     )}
                     <span style={{
                       color: 'var(--text-tertiary)',
-                      fontSize: 17,
+                      fontSize: 15,
                       transform: isExpanded ? 'rotate(90deg)' : 'none',
                       transition: 'transform 0.15s',
                       marginLeft: 4,
                     }}>
-                      {'\u25B6'}
+                      {'▶'}
                     </span>
                   </div>
                 </div>
 
                 {isExpanded && (
                   <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                    {/* Mini topology */}
                     {agents.length > 0 && (
                       <MiniTopology agents={agents} synapses={synapses} results={results} leadAgent={swarm.lead_agent} />
                     )}
 
-                    {/* Results */}
                     {results.length > 0 && (
                       <div style={{ marginTop: 16 }}>
-                        <h4 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                          Results
+                        <h4 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                          Результаты
                         </h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {results.map((r, i) => {
-                            const rc = statusColors[r.status] ?? { color: 'var(--text-tertiary)', bg: 'var(--accent-muted)' };
-                            return (
-                              <div key={i} style={{ padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                  <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{r.role}</span>
-                                  <span style={{ fontSize: 13, padding: '1px 6px', borderRadius: 999, background: rc.bg, color: rc.color }}>
-                                    {r.status}
-                                  </span>
-                                </div>
-                                {r.output && (
-                                  <pre style={{
-                                    fontSize: 14,
-                                    color: 'var(--text-secondary)',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    maxHeight: 200,
-                                    overflowY: 'auto',
-                                    margin: 0,
-                                  }}>
-                                    {r.output}
-                                  </pre>
-                                )}
-                                {r.error && (
-                                  <div style={{ fontSize: 14, color: 'var(--red)' }}>{r.error}</div>
-                                )}
+                          {results.map((r, i) => (
+                            <div key={i} style={{ padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 8 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <span style={{ fontWeight: 600, fontSize: 13.5 }}>{r.role}</span>
+                                <Badge tone={STATUS_TONE[r.status] ?? 'neutral'}>
+                                  {STATUS_LABEL[r.status] ?? r.status}
+                                </Badge>
                               </div>
-                            );
-                          })}
+                              {r.output && (
+                                <pre style={{
+                                  fontSize: 12.5,
+                                  color: 'var(--text-secondary)',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  maxHeight: 200,
+                                  overflowY: 'auto',
+                                  margin: 0,
+                                }}>
+                                  {r.output}
+                                </pre>
+                              )}
+                              {r.error && (
+                                <div style={{ fontSize: 12.5, color: 'var(--red)' }}>{r.error}</div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })}
-          {swarms.length === 0 && !error && (
-            <div style={{ color: 'var(--text-tertiary)', fontSize: 16 }}>No swarm runs yet</div>
+          {swarms !== null && list.length === 0 && !loadError && (
+            <EmptyState
+              title="Запусков отрядов ещё не было"
+              hint="Отряд — граф агентов: без связей они работают параллельно, стрелка передаёт результат по конвейеру, двунаправленная связь открывает общий чат. Соберите граф в редакторе и запустите."
+              action={<Button onClick={() => { setEditData(null); setView('create'); }}>+ Новый отряд</Button>}
+            />
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Удалить отряд?"
+        message="Запись о запуске и его результаты будут удалены."
+        confirmLabel="Удалить"
+        danger
+        busy={confirmBusy}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }
@@ -399,14 +388,16 @@ function MiniTopology({
       {/* Nodes */}
       {nodes.map((n) => {
         const status = resultMap.get(n.role);
-        const sc = status ? (statusColors[status] ?? { color: 'var(--text-tertiary)', bg: 'var(--accent-muted)' }) : { color: 'var(--text-tertiary)', bg: 'var(--bg-elevated)' };
+        const sc = status
+          ? (SVG_STATUS[status] ?? { color: 'var(--text-tertiary)', bg: 'var(--accent-muted)' })
+          : { color: 'var(--text-tertiary)', bg: 'var(--bg-elevated)' };
         const isLead = n.role === leadAgent;
         return (
           <g key={n.role}>
             <rect
               x={n.x} y={n.y} width={nodeW} height={nodeH} rx={6}
               fill={sc.bg}
-              stroke={isLead ? '#f59e0b' : 'var(--border)'}
+              stroke={isLead ? 'var(--amber)' : 'var(--border)'}
               strokeWidth={isLead ? 2 : 1}
             />
             <text
