@@ -1,0 +1,77 @@
+/* Дизайн-токены Штаба. Единственный источник цветов/радиусов.
+   Тема переключается атрибутом data-theme на <html>. */
+:root, [data-theme="dark"] {
+  --bg-body: #0b0b0f;
+  --bg-sidebar: #101014;
+  --bg-card: #15151a;
+  --bg-card-hover: #1a1a20;
+  --bg-input: #0e0e13;
+  --bg-elevated: #1c1c22;
+  --border: #1f1f28;
+  --border-subtle: #18181f;
+  --text-primary: #e4e4ea;
+  --text-secondary: #8a8a96;
+  --text-tertiary: #5a5a66;
+  --text-muted: #44444f;
+  --accent: #6366f1;
+  --accent-hover: #5558e6;
+  --accent-muted: rgba(99, 102, 241, 0.12);
+  --green: #22c55e;
+  --green-muted: rgba(34, 197, 94, 0.12);
+  --green-light: #4ade80;
+  --amber: #eab308;
+  --amber-muted: rgba(234, 179, 8, 0.12);
+  --red: #ef4444;
+  --red-muted: rgba(239, 68, 68, 0.12);
+  --red-light: #f87171;
+  --shadow: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.5);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg-body: #f4f4f8;
+  --bg-sidebar: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8f8fb;
+  --bg-input: #f0f0f4;
+  --bg-elevated: #f6f6fa;
+  --border: #e0e0e8;
+  --border-subtle: #e8e8ef;
+  --text-primary: #18181b;
+  --text-secondary: #6b6b78;
+  --text-tertiary: #9b9ba8;
+  --text-muted: #b0b0bc;
+  --accent: #6366f1;
+  --accent-hover: #5558e6;
+  --accent-muted: rgba(99, 102, 241, 0.08);
+  --green: #16a34a;
+  --green-muted: rgba(22, 163, 74, 0.10);
+  --green-light: #16a34a;
+  --amber: #ca8a04;
+  --amber-muted: rgba(202, 138, 4, 0.10);
+  --red: #dc2626;
+  --red-muted: rgba(220, 38, 38, 0.08);
+  --red-light: #dc2626;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.08);
+  color-scheme: light;
+}
+
+/* Алиасы: код местами ссылается на эти имена (Login, Projects, Agents).
+   Указывают на канонические токены — не использовать в новом коде. */
+:root {
+  --danger: var(--red);
+  --danger-muted: var(--red-muted);
+  --bg-primary: var(--bg-body);
+  --bg-secondary: var(--bg-card);
+  --bg-main: var(--bg-input);
+}
+
+/* Форма и типографика */
+:root {
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
