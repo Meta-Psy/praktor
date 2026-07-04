@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import {
+  Badge, Button, Card, ConfirmDialog, EmptyState, Field, Input, PageHeader,
+  Select, Skeleton, Textarea, useToast,
+} from '../components/ui';
 
 interface Task {
   id: string;
@@ -30,55 +34,14 @@ interface Agent {
 
 const emptyForm: TaskForm = { name: '', schedule: '', agent_id: '', prompt: '', enabled: true };
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: 20,
-  boxShadow: 'var(--shadow)',
+const STATUS_LABEL: Record<string, string> = {
+  active: 'активно',
+  paused: 'пауза',
+  completed: 'завершено',
 };
 
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  borderRadius: 7,
-  border: '1px solid var(--border)',
-  background: 'var(--bg-input)',
-  color: 'var(--text-primary)',
-  fontSize: 16,
-  outline: 'none',
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '8px 20px',
-  borderRadius: 7,
-  border: 'none',
-  background: 'var(--accent)',
-  color: '#fff',
-  fontSize: 16,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnDanger: React.CSSProperties = {
-  padding: '6px 14px',
-  borderRadius: 6,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--red-light)',
-  fontSize: 15,
-  cursor: 'pointer',
-};
-
-const badge = (color: string, bg: string): React.CSSProperties => ({
-  display: 'inline-block',
-  padding: '2px 10px',
-  borderRadius: 999,
-  fontSize: 14,
-  fontWeight: 600,
-  background: bg,
-  color,
-});
+const statusTone = (s: string): 'ok' | 'accent' | 'neutral' =>
+  s === 'active' ? 'ok' : s === 'completed' ? 'accent' : 'neutral';
 
 /** Extract user-friendly schedule string from schedule JSON for editing. */
 export function parseScheduleForEdit(scheduleJSON: string): string {
@@ -99,13 +62,18 @@ export function parseScheduleForEdit(scheduleJSON: string): string {
   return scheduleJSON;
 }
 
+type ConfirmTarget = { kind: 'one'; id: string } | { kind: 'completed' } | null;
+
 function Tasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[] | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [form, setForm] = useState<TaskForm>(emptyForm);
   const [editing, setEditing] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const toast = useToast();
   const { events } = useWebSocket();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -115,8 +83,11 @@ function Tasks() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => setTasks(Array.isArray(data) ? data : []))
-      .catch((err) => setError(err.message));
+      .then((data) => {
+        setTasks(Array.isArray(data) ? data : []);
+        setLoadError(null);
+      })
+      .catch((err) => setLoadError(err.message));
   }, []);
 
   const fetchAgents = useCallback(() => {
@@ -140,7 +111,6 @@ function Tasks() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     try {
       const url = editing ? `/api/tasks/${editing}` : '/api/tasks';
       const method = editing ? 'PUT' : 'POST';
@@ -153,23 +123,29 @@ function Tasks() {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || `HTTP ${res.status}`);
       }
+      toast.success(editing ? 'Дежурство обновлено' : 'Дежурство создано');
       setForm(emptyForm);
       setEditing(null);
       setShowForm(false);
       fetchTasks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(`Не удалось сохранить: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this task?')) return;
+  const confirmDelete = async () => {
+    if (!confirmTarget) return;
+    setConfirmBusy(true);
     try {
-      const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      const url = confirmTarget.kind === 'one' ? `/api/tasks/${confirmTarget.id}` : '/api/tasks/completed';
+      const res = await fetch(url, { method: 'DELETE' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setConfirmTarget(null);
       fetchTasks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      toast.error(`Не удалось удалить: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setConfirmBusy(false);
     }
   };
 
@@ -185,182 +161,182 @@ function Tasks() {
     setShowForm(true);
   };
 
+  // Оптимистичное переключение с откатом при ошибке (спека §6)
   const handleToggle = async (task: Task) => {
     if (task.status === 'completed') return;
+    const prev = tasks;
+    const nextEnabled = !task.enabled;
+    setTasks((ts) => (ts ?? []).map((t) =>
+      t.id === task.id ? { ...t, enabled: nextEnabled, status: nextEnabled ? 'active' : 'paused' } : t,
+    ));
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !task.enabled }),
+        body: JSON.stringify({ enabled: nextEnabled }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       fetchTasks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setTasks(prev);
+      toast.error(`Не удалось переключить: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
-  const handleDeleteCompleted = async () => {
-    if (!confirm('Delete all completed tasks?')) return;
-    try {
-      const res = await fetch('/api/tasks/completed', { method: 'DELETE' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      fetchTasks();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    }
-  };
+  const list = tasks ?? [];
+  const hasCompleted = list.some((t) => t.status === 'completed');
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Дежурства</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {tasks.some((t) => t.status === 'completed') && (
-            <button style={btnDanger} onClick={handleDeleteCompleted}>
-              Delete completed
-            </button>
-          )}
-          <button
-            style={btnPrimary}
-            onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(!showForm); }}
-          >
-            {showForm ? 'Cancel' : '+ New Task'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Дежурства"
+        subtitle="Задачи по расписанию: cron, интервалы и разовые запуски"
+        actions={
+          <>
+            {hasCompleted && (
+              <Button variant="danger" onClick={() => setConfirmTarget({ kind: 'completed' })}>
+                Удалить выполненные
+              </Button>
+            )}
+            <Button onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(!showForm); }}>
+              {showForm ? 'Отмена' : '+ Новое дежурство'}
+            </Button>
+          </>
+        }
+      />
 
-      {error && (
-        <div style={{ ...card, color: 'var(--red-light)', marginBottom: 16 }}>
-          {error}
-        </div>
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 16 }}>
+          Не удалось загрузить дежурства: {loadError}
+        </Card>
       )}
 
       {showForm && (
-        <form onSubmit={handleSubmit} style={{ ...card, marginBottom: 20 }}>
-          <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--text-primary)' }}>
-            {editing ? 'Edit Task' : 'Create Task'}
-          </h3>
-          <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Name</label>
-              <input
-                style={inputStyle}
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Daily summary"
-                required
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Schedule (cron, +5m, +2h)</label>
-              <input
-                style={inputStyle}
-                value={form.schedule}
-                onChange={(e) => setForm({ ...form, schedule: e.target.value })}
-                placeholder="0 9 * * *"
-                required
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Agent</label>
-              <select
-                style={inputStyle}
-                value={form.agent_id}
-                onChange={(e) => setForm({ ...form, agent_id: e.target.value })}
-              >
-                <option value="">Select an agent...</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+        <Card style={{ marginBottom: 20 }}>
+          <form onSubmit={handleSubmit}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+              {editing ? 'Изменить дежурство' : 'Новое дежурство'}
+            </h3>
+            <div className="form-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <Field label="Название">
+                <Input
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Ежедневная сводка"
+                  required
                 />
-                Enabled
-              </label>
+              </Field>
+              <Field label="Расписание (cron, +5m, +2h)">
+                <Input
+                  value={form.schedule}
+                  onChange={(e) => setForm({ ...form, schedule: e.target.value })}
+                  placeholder="0 9 * * *"
+                  required
+                />
+              </Field>
+              <Field label="Агент">
+                <Select value={form.agent_id} onChange={(e) => setForm({ ...form, agent_id: e.target.value })}>
+                  <option value="">Выберите агента…</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.enabled}
+                    onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+                  />
+                  Включено
+                </label>
+              </div>
             </div>
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 15, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>Prompt</label>
-            <textarea
-              style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }}
-              value={form.prompt}
-              onChange={(e) => setForm({ ...form, prompt: e.target.value })}
-              placeholder="What should the agent do?"
-            />
-          </div>
-          <button type="submit" style={btnPrimary}>
-            {editing ? 'Update Task' : 'Create Task'}
-          </button>
-        </form>
+            <div style={{ marginBottom: 16 }}>
+              <Field label="Промпт">
+                <Textarea
+                  value={form.prompt}
+                  onChange={(e) => setForm({ ...form, prompt: e.target.value })}
+                  placeholder="Что должен сделать агент?"
+                />
+              </Field>
+            </div>
+            <Button type="submit">{editing ? 'Сохранить' : 'Создать'}</Button>
+          </form>
+        </Card>
       )}
 
+      {tasks === null && !loadError && <Skeleton lines={4} />}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {tasks.map((task) => (
-          <div key={task.id} style={card}>
+        {list.map((task) => (
+          <Card key={task.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>{task.name}</span>
-                  <span
-                    style={{
-                      ...badge(
-                        task.status === 'active' ? 'var(--green)' : 'var(--text-secondary)',
-                        task.status === 'active' ? 'var(--green-muted)' : 'var(--accent-muted)',
-                      ),
-                      cursor: task.status === 'completed' ? 'default' : 'pointer',
-                    }}
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>{task.name}</span>
+                  <Badge
+                    tone={statusTone(task.status)}
+                    role={task.status === 'completed' ? undefined : 'button'}
+                    tabIndex={task.status === 'completed' ? undefined : 0}
+                    title={task.status === 'completed' ? undefined : 'Включить или поставить на паузу'}
+                    style={{ cursor: task.status === 'completed' ? 'default' : 'pointer' }}
                     onClick={() => handleToggle(task)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle(task); }
+                    }}
                   >
-                    {task.status}
-                  </span>
+                    {STATUS_LABEL[task.status] ?? task.status}
+                  </Badge>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, fontSize: 15, color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, fontSize: 13.5, color: 'var(--text-secondary)' }}>
                   <span>{task.schedule_display || task.schedule}</span>
-                  {task.agent_id && (
-                    <span style={badge('var(--accent)', 'var(--accent-muted)')}>
-                      {task.agent_name || task.agent_id}
-                    </span>
-                  )}
+                  {task.agent_id && <Badge tone="accent">{task.agent_name || task.agent_id}</Badge>}
                 </div>
 
                 {task.prompt && (
-                  <div style={{ fontSize: 15, color: 'var(--text-tertiary)', marginBottom: 8, maxWidth: 600 }}>
-                    {task.prompt.length > 120 ? task.prompt.slice(0, 120) + '...' : task.prompt}
+                  <div style={{ fontSize: 13.5, color: 'var(--text-tertiary)', marginBottom: 8, maxWidth: 600 }}>
+                    {task.prompt.length > 120 ? task.prompt.slice(0, 120) + '…' : task.prompt}
                   </div>
                 )}
 
-                <div style={{ fontSize: 14, color: 'var(--text-muted)', display: 'flex', gap: 16 }}>
-                  {task.last_run && <span>Last run: {task.last_run}</span>}
-                  {task.next_run && <span>Next run: {task.next_run}</span>}
+                <div style={{ fontSize: 12.5, color: 'var(--text-muted)', display: 'flex', gap: 16 }}>
+                  {task.last_run && <span>Последний запуск: {task.last_run}</span>}
+                  {task.next_run && <span>Следующий: {task.next_run}</span>}
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 16 }}>
-                <button
-                  style={{ ...btnDanger, color: 'var(--text-secondary)' }}
-                  onClick={() => handleEdit(task)}
-                >
-                  Edit
-                </button>
-                <button style={btnDanger} onClick={() => handleDelete(task.id)}>
-                  Delete
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => handleEdit(task)}>Изменить</Button>
+                <Button variant="danger" size="sm" onClick={() => setConfirmTarget({ kind: 'one', id: task.id })}>Удалить</Button>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
-        {tasks.length === 0 && !error && (
-          <div style={{ color: 'var(--text-tertiary)', fontSize: 16 }}>No scheduled tasks</div>
+        {tasks !== null && list.length === 0 && !loadError && (
+          <EmptyState
+            title="Дежурств пока нет"
+            hint="Дежурство — задача по расписанию: cron-выражение, интервал (+30m) или разовый запуск. Агент выполнит её и пришлёт результат в Telegram."
+            action={
+              <Button onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(true); }}>
+                + Новое дежурство
+              </Button>
+            }
+          />
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title={confirmTarget?.kind === 'completed' ? 'Удалить все выполненные дежурства?' : 'Удалить дежурство?'}
+        confirmLabel="Удалить"
+        danger
+        busy={confirmBusy}
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }
