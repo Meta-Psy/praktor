@@ -3,45 +3,31 @@ import {
   formatMemory, capabilityGroups,
   type CatalogResponse, type AgentCapabilities,
 } from './catalogStatus';
-
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 10, padding: 16, boxShadow: 'var(--shadow)', marginBottom: 12,
-};
-const chip: React.CSSProperties = {
-  display: 'inline-block', padding: '2px 8px', borderRadius: 6,
-  border: '1px solid var(--border)', fontSize: 12, marginRight: 6, marginTop: 4,
-};
-const btn: React.CSSProperties = {
-  padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
-  cursor: 'pointer', fontSize: 13, background: 'transparent', color: 'inherit',
-};
+import { Badge, Button, Card, EmptyState, PageHeader, Skeleton } from '../components/ui';
 
 function AgentCard({ a }: { a: AgentCapabilities }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={card}>
+    <Card style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <strong>{a.agent_id}</strong>
-          {a.restricted && (
-            <span style={{ ...chip, borderColor: 'crimson', color: 'crimson' }}>restricted</span>
-          )}
+          {a.restricted && <Badge tone="danger" style={{ marginLeft: 8 }}>ограничен</Badge>}
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
             {a.model} · память: {formatMemory(a.memory)}
           </div>
-          <div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
             {capabilityGroups(a).map((g) => (
-              <span key={g} style={chip}>{g}</span>
+              <Badge key={g} tone="neutral">{g}</Badge>
             ))}
           </div>
         </div>
-        <button style={btn} onClick={() => setOpen((v) => !v)}>
+        <Button variant="secondary" size="sm" onClick={() => setOpen((v) => !v)}>
           {open ? 'Скрыть' : 'Детали'}
-        </button>
+        </Button>
       </div>
       {open && (
-        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12, fontSize: 14 }}>
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12, fontSize: 13.5 }}>
           <p style={{ margin: '0 0 8px' }}>{a.description || '—'}</p>
           <div style={{ marginBottom: 8 }}>
             <strong>Встроенные возможности:</strong>
@@ -55,7 +41,7 @@ function AgentCard({ a }: { a: AgentCapabilities }) {
             <strong>Расширения:</strong>{' '}
             {a.extensions.mcp_servers.length + a.extensions.skills.length + a.extensions.plugins.length === 0
               ? 'нет'
-              : `MCP: ${a.extensions.mcp_servers.join(', ') || '—'}; skills: ${a.extensions.skills.join(', ') || '—'}; plugins: ${a.extensions.plugins.join(', ') || '—'}`}
+              : `MCP: ${a.extensions.mcp_servers.join(', ') || '—'}; навыки: ${a.extensions.skills.join(', ') || '—'}; плагины: ${a.extensions.plugins.join(', ') || '—'}`}
           </div>
           <div style={{ marginBottom: 8 }}>
             <strong>allowed_tools:</strong>{' '}
@@ -70,7 +56,7 @@ function AgentCard({ a }: { a: AgentCapabilities }) {
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -87,12 +73,18 @@ function Catalog() {
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Арсенал</h1>
-      <div style={{ ...card, color: 'var(--text-secondary)' }}>
+      <PageHeader title="Арсенал" subtitle="Каталог возможностей агентов: инструменты, память, расширения" />
+      <Card style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>
         Профиль пользователя: {data?.user_profile_present ? 'задан' : 'не задан'}
-      </div>
-      {data?.agents.length === 0 && <div style={card}>Нет агентов.</div>}
-      {data?.agents.map((a) => <AgentCard key={a.agent_id} a={a} />)}
+      </Card>
+      {data === null && <Skeleton lines={3} />}
+      {data !== null && data.agents.length === 0 && (
+        <EmptyState
+          title="Нет агентов"
+          hint="Каталог собирается из определений агентов и их отчётов о памяти."
+        />
+      )}
+      {(data?.agents ?? []).map((a) => <AgentCard key={a.agent_id} a={a} />)}
     </div>
   );
 }
