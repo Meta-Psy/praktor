@@ -8,7 +8,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Praktor Mission Control',
+        name: 'Praktor — Штаб',
         short_name: 'Praktor',
         theme_color: '#0b0b0f',
         background_color: '#0b0b0f',
