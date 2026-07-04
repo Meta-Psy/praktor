@@ -55,7 +55,7 @@ function Projects() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 20 }}>Projects</h1>
+      <h1 style={{ marginBottom: 20 }}>Операции</h1>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
         {projects.map((p) => (
           <div key={p.name} style={card}>

@@ -87,7 +87,7 @@ function Catalog() {
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 16 }}>Каталог возможностей</h1>
+      <h1 style={{ marginBottom: 16 }}>Арсенал</h1>
       <div style={{ ...card, color: 'var(--text-secondary)' }}>
         Профиль пользователя: {data?.user_profile_present ? 'задан' : 'не задан'}
       </div>

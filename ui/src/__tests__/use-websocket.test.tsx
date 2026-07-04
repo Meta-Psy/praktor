@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
-import { useWebSocket } from "../hooks/useWebSocket";
+import type { ReactNode } from "react";
+import { useWebSocket, WebSocketProvider } from "../hooks/useWebSocket";
 
 // Minimal mock that implements only the surface the hook touches.
 class MockWebSocket {
@@ -41,6 +42,9 @@ class MockWebSocket {
 
 describe("useWebSocket", () => {
   const realWebSocket = globalThis.WebSocket;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <WebSocketProvider>{children}</WebSocketProvider>
+  );
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -55,7 +59,7 @@ describe("useWebSocket", () => {
   });
 
   it("connects to /api/ws using ws:// for http pages", () => {
-    const { unmount } = renderHook(() => useWebSocket());
+    const { unmount } = renderHook(() => useWebSocket(), { wrapper });
     expect(MockWebSocket.instances).toHaveLength(1);
     expect(MockWebSocket.instances[0].url).toBe(
       `ws://${window.location.host}/api/ws`
@@ -64,7 +68,7 @@ describe("useWebSocket", () => {
   });
 
   it("starts in 'connecting' status and moves to 'connected' on open", () => {
-    const { result } = renderHook(() => useWebSocket());
+    const { result } = renderHook(() => useWebSocket(), { wrapper });
     expect(result.current.status).toBe("connecting");
 
     act(() => {
@@ -74,7 +78,7 @@ describe("useWebSocket", () => {
   });
 
   it("appends parsed events on incoming messages", () => {
-    const { result } = renderHook(() => useWebSocket());
+    const { result } = renderHook(() => useWebSocket(), { wrapper });
     act(() => MockWebSocket.instances[0].open());
 
     act(() => {
@@ -94,7 +98,7 @@ describe("useWebSocket", () => {
   });
 
   it("silently drops malformed JSON messages", () => {
-    const { result } = renderHook(() => useWebSocket());
+    const { result } = renderHook(() => useWebSocket(), { wrapper });
     act(() => MockWebSocket.instances[0].open());
 
     act(() => {
@@ -105,7 +109,7 @@ describe("useWebSocket", () => {
   });
 
   it("trims the event buffer to the last 500 entries", () => {
-    const { result } = renderHook(() => useWebSocket());
+    const { result } = renderHook(() => useWebSocket(), { wrapper });
     act(() => MockWebSocket.instances[0].open());
 
     act(() => {
@@ -125,7 +129,7 @@ describe("useWebSocket", () => {
   });
 
   it("clearEvents resets the buffer", () => {
-    const { result } = renderHook(() => useWebSocket());
+    const { result } = renderHook(() => useWebSocket(), { wrapper });
     act(() => MockWebSocket.instances[0].open());
     act(() =>
       MockWebSocket.instances[0].message({
@@ -141,7 +145,7 @@ describe("useWebSocket", () => {
   });
 
   it("reconnects after the socket closes", () => {
-    renderHook(() => useWebSocket());
+    renderHook(() => useWebSocket(), { wrapper });
     expect(MockWebSocket.instances).toHaveLength(1);
 
     act(() => MockWebSocket.instances[0].close());
@@ -152,6 +156,26 @@ describe("useWebSocket", () => {
     });
 
     expect(MockWebSocket.instances).toHaveLength(2);
+  });
+
+  it("бросает ошибку вне провайдера", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => renderHook(() => useWebSocket())).toThrow(
+      /WebSocketProvider/
+    );
+    spy.mockRestore();
+  });
+
+  it("не переподключается после размонтирования", () => {
+    const { unmount } = renderHook(() => useWebSocket(), { wrapper });
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
   });
 
 });

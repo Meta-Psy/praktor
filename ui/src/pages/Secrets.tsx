@@ -221,7 +221,7 @@ function Secrets() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Secrets</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Сейф</h1>
         <button
           style={btnPrimary}
           onClick={() => { setForm(emptyForm); setEditing(null); setShowForm(!showForm); }}

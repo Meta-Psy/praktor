@@ -10,7 +10,7 @@ const input: React.CSSProperties = {
   background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 15, marginBottom: 8,
 };
 
-function Intake() {
+export function IntakeContent() {
   const [doc, setDoc] = useState<IntakeList | null>(null);
   const [text, setText] = useState('');
   const [project, setProject] = useState('');
@@ -34,6 +34,14 @@ function Intake() {
     const id = setInterval(fetchList, 60000);
     return () => clearInterval(id);
   }, [fetchList]);
+
+  useEffect(() => {
+    return () => {
+      if (recorder.current && recorder.current.state !== 'inactive') {
+        recorder.current.stop(); // onstop освобождает дорожки микрофона
+      }
+    };
+  }, []);
 
   const startRec = useCallback(async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -77,7 +85,6 @@ function Intake() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: 8 }}>Intake</h1>
       <div style={card}>
         <textarea style={{ ...input, minHeight: 70 }} placeholder="Задача Claude'у…" value={text} onChange={(e) => setText(e.target.value)} />
         <input style={input} placeholder="проект (опц.) — пусто = триаж определит" value={project} onChange={(e) => setProject(e.target.value)} />
@@ -109,5 +116,3 @@ function Intake() {
     </div>
   );
 }
-
-export default Intake;

@@ -65,7 +65,7 @@ export default function UserProfile() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>User Profile</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Досье</h1>
           <p style={{ fontSize: 16, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
             Personal information shared with all agents via USER.md
           </p>

@@ -214,7 +214,7 @@ function Tasks() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Scheduled Tasks</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' }}>Дежурства</h1>
         <div style={{ display: 'flex', gap: 8 }}>
           {tasks.some((t) => t.status === 'completed') && (
             <button style={btnDanger} onClick={handleDeleteCompleted}>

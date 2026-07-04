@@ -71,7 +71,7 @@ export default function Login({ onLogin }: LoginProps) {
             </svg>
           </div>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Mission Control
+            Штаб
           </div>
         </div>
 
