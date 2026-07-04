@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import AgentExtensions from '../components/AgentExtensions';
+import {
+  Badge, Button, Card, EmptyState, PageHeader, Skeleton, Textarea, useToast,
+} from '../components/ui';
 
 interface Agent {
   id: string;
@@ -15,32 +18,19 @@ interface Agent {
   last_active?: string;
 }
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: 20,
-  cursor: 'pointer',
-  boxShadow: 'var(--shadow)',
+const STATUS_LABEL: Record<string, string> = {
+  running: 'работает',
+  stopped: 'остановлен',
 };
 
-const badge = (color: string, bg: string): React.CSSProperties => ({
-  display: 'inline-block',
-  padding: '2px 10px',
-  borderRadius: 999,
-  fontSize: 14,
-  fontWeight: 600,
-  background: bg,
-  color,
-});
-
 function Agents() {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<Agent[] | null>(null);
   const [selected, setSelected] = useState<Agent | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [agentMd, setAgentMd] = useState('');
-  const [agentMdSaved, setAgentMdSaved] = useState(false);
+  const [agentMdSaving, setAgentMdSaving] = useState(false);
   const [agentMdLoading, setAgentMdLoading] = useState(false);
+  const toast = useToast();
   const { events } = useWebSocket();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -50,8 +40,11 @@ function Agents() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => setAgents(Array.isArray(data) ? data : []))
-      .catch((err) => setError(err.message));
+      .then((data) => {
+        setAgents(Array.isArray(data) ? data : []);
+        setLoadError(null);
+      })
+      .catch((err) => setLoadError(err.message));
   }, []);
 
   useEffect(() => {
@@ -75,63 +68,79 @@ function Agents() {
       .finally(() => setAgentMdLoading(false));
   }, [selected?.id]);
 
-  const saveAgentMd = () => {
+  const saveAgentMd = async () => {
     if (!selected) return;
-    fetch(`/api/agents/definitions/${selected.id}/agent-md`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: agentMd }),
-    }).then(() => {
-      setAgentMdSaved(true);
-      setTimeout(() => setAgentMdSaved(false), 2000);
-    });
+    setAgentMdSaving(true);
+    try {
+      const res = await fetch(`/api/agents/definitions/${selected.id}/agent-md`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: agentMd }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Сохранено');
+    } catch (err) {
+      toast.error(`Не удалось сохранить AGENT.md: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setAgentMdSaving(false);
+    }
   };
+
+  const toggleAgent = async (agent: Agent, action: 'start' | 'stop') => {
+    try {
+      const res = await fetch(`/api/agents/definitions/${agent.id}/${action}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      fetchAgents();
+    } catch (err) {
+      toast.error(`Не удалось ${action === 'start' ? 'запустить' : 'остановить'} агента: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const list = agents ?? [];
 
   return (
     <div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 28, color: 'var(--text-primary)' }}>Агенты</h1>
+      <PageHeader title="Агенты" subtitle="Определения агентов: статусы контейнеров, AGENT.md и расширения" />
 
-      {error && (
-        <div style={{ ...card, color: 'var(--red-light)', marginBottom: 16, cursor: 'default' }}>
-          Failed to load agents: {error}
-        </div>
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 16 }}>
+          Не удалось загрузить агентов: {loadError}
+        </Card>
       )}
 
+      {agents === null && !loadError && <Skeleton lines={4} />}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-        {[...agents].sort((a, b) => a.name.localeCompare(b.name)).map((agent) => (
-          <div
+        {[...list].sort((a, b) => a.name.localeCompare(b.name)).map((agent) => (
+          <Card
             key={agent.id}
-            data-hover
-            style={{
-              ...card,
-              borderColor: selected?.id === agent.id ? 'var(--accent)' : 'var(--border)',
-            }}
+            interactive
+            role="button"
+            tabIndex={0}
+            style={{ borderColor: selected?.id === agent.id ? 'var(--accent)' : undefined }}
             onClick={() => setSelected(selected?.id === agent.id ? null : agent)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSelected(selected?.id === agent.id ? null : agent);
+              }
+            }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>{agent.name}</span>
+              <span style={{ fontSize: 16, fontWeight: 600 }}>{agent.name}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {agent.default_agent && (
-                  <span style={badge('var(--accent)', 'var(--accent-muted)')}>
-                    default
-                  </span>
-                )}
+                {agent.default_agent && <Badge tone="accent">основной</Badge>}
                 {agent.agent_status && (
-                  <span style={badge(
-                    agent.agent_status === 'running' ? 'var(--green)' : 'var(--text-secondary)',
-                    agent.agent_status === 'running' ? 'var(--green-muted)' : 'var(--accent-muted)',
-                  )}>
-                    {agent.agent_status}
-                  </span>
+                  <Badge tone={agent.agent_status === 'running' ? 'ok' : 'neutral'}>
+                    {STATUS_LABEL[agent.agent_status] ?? agent.agent_status}
+                  </Badge>
                 )}
                 {agent.agent_status === 'running' ? (
                   <button
                     data-agent-stop
-                    title="Stop agent"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fetch(`/api/agents/definitions/${agent.id}/stop`, { method: 'POST' }).then(() => fetchAgents());
-                    }}
+                    title="Остановить агента"
+                    aria-label="Остановить агента"
+                    onClick={(e) => { e.stopPropagation(); toggleAgent(agent, 'stop'); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', lineHeight: 1 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
@@ -139,11 +148,9 @@ function Agents() {
                 ) : (
                   <button
                     data-agent-start
-                    title="Start agent"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fetch(`/api/agents/definitions/${agent.id}/start`, { method: 'POST' }).then(() => fetchAgents());
-                    }}
+                    title="Запустить агента"
+                    aria-label="Запустить агента"
+                    onClick={(e) => { e.stopPropagation(); toggleAgent(agent, 'start'); }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', lineHeight: 1 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="7,5 19,12 7,19" /></svg>
@@ -152,125 +159,94 @@ function Agents() {
               </div>
             </div>
             {agent.description && (
-              <div style={{ fontSize: 15, color: 'var(--text-tertiary)', marginBottom: 4 }}>{agent.description}</div>
+              <div style={{ fontSize: 13.5, color: 'var(--text-tertiary)', marginBottom: 4 }}>{agent.description}</div>
             )}
             {agent.model && (
-              <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 4 }}>Model: {agent.model}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 4 }}>Модель: {agent.model}</div>
             )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, color: 'var(--text-tertiary)' }}>
-              <span>{agent.message_count ?? 0} messages</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-tertiary)' }}>
+              <span>сообщений: {agent.message_count ?? 0}</span>
               {agent.last_active && <span>{agent.last_active}</span>}
             </div>
-          </div>
+          </Card>
         ))}
       </div>
 
-      {agents.length === 0 && !error && (
-        <div style={{ color: 'var(--text-tertiary)', fontSize: 16 }}>No agents found</div>
+      {agents !== null && list.length === 0 && !loadError && (
+        <EmptyState
+          title="Агентов нет"
+          hint="Агенты определяются в YAML-конфигурации гейтвея (секция agents) и появляются здесь после перезагрузки конфига."
+        />
       )}
 
       {selected && (
         <div style={{ marginTop: 28 }}>
-          <div style={{ ...card, cursor: 'default' }}>
-            <h2 style={{ fontSize: 22, fontWeight: 600, marginBottom: 16, color: 'var(--accent)' }}>
+          <Card>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, color: 'var(--accent)' }}>
               {selected.name}
             </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
               <div>
                 <span style={{ color: 'var(--text-tertiary)' }}>ID: </span>
                 <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{selected.id}</span>
               </div>
               {selected.description && (
                 <div>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Description: </span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selected.description}</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>Описание: </span>
+                  <span>{selected.description}</span>
                 </div>
               )}
               {selected.model && (
                 <div>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Model: </span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selected.model}</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>Модель: </span>
+                  <span>{selected.model}</span>
                 </div>
               )}
               {selected.workspace && (
                 <div>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Workspace: </span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selected.workspace}</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>Рабочая область: </span>
+                  <span>{selected.workspace}</span>
                 </div>
               )}
               <div>
-                <span style={{ color: 'var(--text-tertiary)' }}>Agent Status: </span>
-                <span style={{ color: 'var(--text-primary)' }}>{selected.agent_status ?? 'unknown'}</span>
+                <span style={{ color: 'var(--text-tertiary)' }}>Статус: </span>
+                <span>{selected.agent_status ? (STATUS_LABEL[selected.agent_status] ?? selected.agent_status) : 'неизвестно'}</span>
               </div>
               <div>
-                <span style={{ color: 'var(--text-tertiary)' }}>Messages: </span>
-                <span style={{ color: 'var(--text-primary)' }}>{selected.message_count ?? 0}</span>
+                <span style={{ color: 'var(--text-tertiary)' }}>Сообщений: </span>
+                <span>{selected.message_count ?? 0}</span>
               </div>
               {selected.last_active && (
                 <div>
-                  <span style={{ color: 'var(--text-tertiary)' }}>Last Active: </span>
-                  <span style={{ color: 'var(--text-primary)' }}>{selected.last_active}</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>Последняя активность: </span>
+                  <span>{selected.last_active}</span>
                 </div>
               )}
             </div>
+          </Card>
 
-          </div>
-
-          <div style={{ ...card, cursor: 'default', marginTop: 16 }}>
+          <Card style={{ marginTop: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <h3 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
-                  Agent Identity
-                </h3>
-                <p style={{ fontSize: 15, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                  Personal identity and instructions for this agent via AGENT.md
+                <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Личность агента</h3>
+                <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                  Инструкции и роль этого агента — AGENT.md
                 </p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {agentMdSaved && (
-                  <span style={{ color: 'var(--green)', fontSize: 15, fontWeight: 500 }}>Saved</span>
-                )}
-                {!agentMdLoading && (
-                  <button
-                    onClick={saveAgentMd}
-                    style={{
-                      padding: '6px 18px',
-                      background: 'var(--accent)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontSize: 15,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Save
-                  </button>
-                )}
-              </div>
+              {!agentMdLoading && (
+                <Button onClick={saveAgentMd} busy={agentMdSaving}>Сохранить</Button>
+              )}
             </div>
             {agentMdLoading ? (
-              <div style={{ color: 'var(--text-tertiary)', fontSize: 15 }}>Loading...</div>
+              <Skeleton lines={3} />
             ) : (
-              <textarea
+              <Textarea
                 value={agentMd}
                 onChange={(e) => setAgentMd(e.target.value)}
-                style={{
-                  width: '100%',
-                  minHeight: 180,
-                  fontFamily: 'monospace',
-                  fontSize: 15,
-                  background: 'var(--bg-main)',
-                  color: 'var(--text-primary)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  padding: 12,
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                }}
+                style={{ minHeight: 180, fontFamily: 'monospace', fontSize: 13.5, lineHeight: 1.6 }}
               />
             )}
-          </div>
+          </Card>
 
           <div style={{ marginTop: 16 }}>
             <AgentExtensions agentId={selected.id} />
