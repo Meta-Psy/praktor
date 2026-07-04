@@ -14,9 +14,20 @@ const FOCUSABLE = 'button, [href], input, textarea, select, [tabindex]:not([tabi
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const boxRef = useRef<HTMLDivElement>(null);
 
+  // Scroll-lock: пока модалка открыта, body не прокручивается
   useEffect(() => {
     if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prevOverflow; };
+  }, [open]);
+
+  // Фокус на первый элемент; при закрытии — возврат туда, откуда открыли
+  useEffect(() => {
+    if (!open) return;
+    const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     boxRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    return () => { prevFocus?.focus(); };
   }, [open]);
 
   useEffect(() => {
