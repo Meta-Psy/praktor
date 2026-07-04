@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import { percent, groupByLane, type Portfolio as PortfolioDoc, type PortfolioProject } from './portfolioStatus';
 import { ciLabel, deployLabel, type ProjectStatus } from './projectStatus';
+import { Card, EmptyState, PageHeader, Skeleton } from '../components/ui';
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 10, padding: 16, boxShadow: 'var(--shadow)', marginBottom: 12,
+const STATUS_COLOR: Record<string, string> = {
+  active: 'var(--accent)',
+  paused: 'var(--amber)',
+  done: 'var(--text-secondary)',
 };
-const lane: React.CSSProperties = { flex: 1, minWidth: 0 };
-const STATUS_COLOR: Record<string, string> = { active: 'var(--accent)', paused: '#b8860b', done: 'var(--text-secondary)' };
+
+const LANE_LABEL: Record<'planned' | 'doing' | 'done', string> = {
+  planned: 'план',
+  doing: 'в работе',
+  done: 'готово',
+};
 
 function Portfolio() {
   const [doc, setDoc] = useState<PortfolioDoc | null>(null);
@@ -36,42 +42,58 @@ function Portfolio() {
     return () => clearInterval(id);
   }, [fetchAll]);
 
-  if (error) return <div style={{ color: 'var(--danger, #c00)' }}>Error: {error}</div>;
-  if (!doc) return <div>Loading…</div>;
-
   return (
     <div>
-      <h1 style={{ marginBottom: 8 }}>Задачи</h1>
-      {doc.stale && (
-        <div style={{ color: '#b8860b', marginBottom: 12 }}>
-          ⚠ stale data{doc.fetch_error ? `: ${doc.fetch_error}` : ''}
+      <PageHeader title="Задачи" subtitle="Роадмап проектов: направления и прогресс" />
+
+      {error && <Card style={{ color: 'var(--red)', marginBottom: 16 }}>Не удалось загрузить: {error}</Card>}
+      {doc === null && !error && <Skeleton lines={4} />}
+
+      {doc?.stale && (
+        <div style={{ color: 'var(--amber)', marginBottom: 12 }}>
+          ⚠ данные могли устареть{doc.fetch_error ? `: ${doc.fetch_error}` : ''}
         </div>
       )}
-      {doc.projects.map((p: PortfolioProject) => {
+
+      {doc !== null && doc.projects.length === 0 && (
+        <EmptyState
+          title="Роадмап пуст"
+          hint="Здесь появятся проекты с направлениями и прогрессом, когда роадмап будет заполнен."
+        />
+      )}
+
+      {(doc?.projects ?? []).map((p: PortfolioProject) => {
         const pct = percent(p.directions);
         const lv = p.mc_key ? live[p.mc_key] : undefined;
         const isOpen = open === p.key;
         const lanes = groupByLane(p.directions);
         return (
-          <div key={p.key} style={card}>
+          <Card key={p.key} style={{ marginBottom: 12 }}>
             <div
+              role="button"
+              tabIndex={0}
               onClick={() => setOpen(isOpen ? null : p.key)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(isOpen ? null : p.key); }
+              }}
               style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
             >
               <span style={{ width: 8, height: 8, borderRadius: 4, background: STATUS_COLOR[p.status] || 'var(--text-secondary)' }} />
-              <strong style={{ fontSize: 16, flex: 1 }}>{p.name}</strong>
+              <strong style={{ fontSize: 15, flex: 1 }}>{p.name}</strong>
               {lv && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>CI {ciLabel(lv.ci)} · {deployLabel(lv.deploy)}</span>}
               <span style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 36, textAlign: 'right' }}>{pct}%</span>
             </div>
             <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginTop: 8 }}>
               <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
             </div>
-            {p.next_action && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>next: {p.next_action}</div>}
+            {p.next_action && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>дальше: {p.next_action}</div>}
             {isOpen && (
               <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
                 {(['planned', 'doing', 'done'] as const).map((k) => (
-                  <div key={k} style={lane}>
-                    <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 4 }}>{k}</div>
+                  <div key={k} style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                      {LANE_LABEL[k]}
+                    </div>
                     {lanes[k].map((d, i) => (
                       <div key={i} style={{ fontSize: 13, padding: '4px 0', borderTop: '1px solid var(--border)' }}>{d.title}</div>
                     ))}
@@ -79,7 +101,7 @@ function Portfolio() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         );
       })}
     </div>

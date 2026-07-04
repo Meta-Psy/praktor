@@ -1,32 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { snapshotStatus, type IntelSource } from './intelStatus';
+import { Badge, Card, EmptyState, Skeleton } from '../components/ui';
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 10, padding: 16, boxShadow: 'var(--shadow)', marginBottom: 12,
-};
-
-const statusColor: Record<string, string> = {
-  ok: 'var(--accent, #0F8B5C)',
-  error: 'var(--danger, #e05c5c)',
-  empty: 'var(--text-secondary)',
+const STATUS_TONE: Record<string, 'ok' | 'danger' | 'neutral'> = {
+  ok: 'ok',
+  error: 'danger',
+  empty: 'neutral',
 };
 
 function IntelCard({ src }: { src: IntelSource }) {
   const st = snapshotStatus(src.latest);
   return (
-    <div style={card}>
+    <Card style={{ marginBottom: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1 }}>
           <span style={{ fontWeight: 600 }}>{src.key}</span>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>{src.project}</span>
-          <span style={{
-            display: 'inline-block', padding: '2px 8px', borderRadius: 6,
-            border: `1px solid ${statusColor[st]}`, color: statusColor[st],
-            fontSize: 12, marginLeft: 8,
-          }}>{st}</span>
+          <Badge tone={STATUS_TONE[st] ?? 'neutral'} style={{ marginLeft: 8 }}>{st}</Badge>
           {src.latest?.ok && src.latest.change_note && (
-            <div style={{ marginTop: 8, fontSize: 14, color: 'var(--text-primary)' }}>
+            <div style={{ marginTop: 8, fontSize: 13.5 }}>
               {src.latest.change_note}
             </div>
           )}
@@ -38,7 +30,7 @@ function IntelCard({ src }: { src: IntelSource }) {
             }}>{src.latest.payload}</pre>
           )}
           {src.latest && !src.latest.ok && (
-            <div style={{ marginTop: 8, fontSize: 13, color: statusColor.error }}>
+            <div style={{ marginTop: 8, fontSize: 13, color: 'var(--red)' }}>
               Сбой сбора: {src.latest.error}
             </div>
           )}
@@ -59,12 +51,12 @@ function IntelCard({ src }: { src: IntelSource }) {
           </ul>
         </details>
       )}
-    </div>
+    </Card>
   );
 }
 
 export function IntelContent() {
-  const [sources, setSources] = useState<IntelSource[]>([]);
+  const [sources, setSources] = useState<IntelSource[] | null>(null);
 
   const fetchData = useCallback(() => {
     fetch('/api/intel')
@@ -76,9 +68,14 @@ export function IntelContent() {
 
   return (
     <div>
-      {sources.length === 0 && <div style={card}>Нет источников или снимков.</div>}
-      {sources.map((s) => <IntelCard key={s.key} src={s} />)}
+      {sources === null && <Skeleton lines={3} />}
+      {sources !== null && sources.length === 0 && (
+        <EmptyState
+          title="Нет источников или снимков"
+          hint="Разведсводки собираются по расписанию из настроенных источников; изменения появятся здесь."
+        />
+      )}
+      {(sources ?? []).map((s) => <IntelCard key={s.key} src={s} />)}
     </div>
   );
 }
-
