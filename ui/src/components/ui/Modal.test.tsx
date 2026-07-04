@@ -21,3 +21,16 @@ test('открытая модалка блокирует скролл body и в
 
   opener.remove();
 });
+
+test('scroll-lock снимается только после закрытия последней из двух модалок', () => {
+  const a = render(<Modal open onClose={() => {}} title="A"><button>А</button></Modal>);
+  const b = render(<Modal open onClose={() => {}} title="B"><button>Б</button></Modal>);
+  expect(document.body.style.overflow).toBe('hidden');
+
+  // A закрылась, B ещё открыта — скролл остаётся заблокированным
+  a.rerender(<Modal open={false} onClose={() => {}} title="A"><button>А</button></Modal>);
+  expect(document.body.style.overflow).toBe('hidden');
+
+  b.rerender(<Modal open={false} onClose={() => {}} title="B"><button>Б</button></Modal>);
+  expect(document.body.style.overflow).toBe('');
+});
