@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import Login from './components/Login';
+import { WebSocketProvider } from './contexts/WebSocketContext';
 import {
   IconDashboard, IconAgents, IconConversations, IconTasks, IconSwarms,
   IconSecrets, IconUser, IconGitHub, IconSun, IconMoon, IconLogout,
@@ -84,7 +85,8 @@ function App() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <WebSocketProvider>
+      <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Hamburger button (mobile only) */}
       <button
         className="hamburger"
@@ -293,7 +295,8 @@ function App() {
           </Routes>
         </Suspense>
       </main>
-    </div>
+      </div>
+    </WebSocketProvider>
   );
 }
 
