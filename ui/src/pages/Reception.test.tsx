@@ -1,6 +1,7 @@
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { ToastProvider } from '../components/ui';
 import Reception from './Reception';
 
 beforeEach(() => {
@@ -23,9 +24,11 @@ afterEach(() => {
 
 test('по умолчанию открыта вкладка «Входящие»', async () => {
   render(
-    <MemoryRouter initialEntries={['/intake']}>
-      <Reception />
-    </MemoryRouter>
+    <ToastProvider>
+      <MemoryRouter initialEntries={['/intake']}>
+        <Reception />
+      </MemoryRouter>
+    </ToastProvider>
   );
   await act(() => Promise.resolve());
   expect(screen.getByRole('tab', { name: 'Входящие' }).getAttribute('aria-selected')).toBe('true');
@@ -34,9 +37,11 @@ test('по умолчанию открыта вкладка «Входящие»
 
 test('?tab=plans открывает «Планы», клик переключает обратно', async () => {
   render(
-    <MemoryRouter initialEntries={['/intake?tab=plans']}>
-      <Reception />
-    </MemoryRouter>
+    <ToastProvider>
+      <MemoryRouter initialEntries={['/intake?tab=plans']}>
+        <Reception />
+      </MemoryRouter>
+    </ToastProvider>
   );
   await act(() => Promise.resolve());
   expect(screen.getByRole('tab', { name: 'Планы' }).getAttribute('aria-selected')).toBe('true');

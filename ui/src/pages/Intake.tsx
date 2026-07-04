@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { routeLabel, statusLabel, type IntakeItem, type IntakeList } from './intakeStatus';
+import { Badge, Button, Card, EmptyState, Input, Skeleton, Textarea, useToast } from '../components/ui';
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 10, padding: 16, boxShadow: 'var(--shadow)', marginBottom: 12,
-};
-const input: React.CSSProperties = {
-  width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--border)',
-  background: 'var(--bg-card)', color: 'var(--text-primary)', fontSize: 15, marginBottom: 8,
-};
+// Тон бейджа статуса по смыслу (набор статусов открытый — подстрочные проверки)
+function statusTone(status: string): 'ok' | 'warn' | 'danger' | 'neutral' {
+  if (/done|approved|completed/.test(status)) return 'ok';
+  if (/reject|fail|error/.test(status)) return 'danger';
+  if (/await|progress|plan/.test(status)) return 'warn';
+  return 'neutral';
+}
 
 export function IntakeContent() {
   const [doc, setDoc] = useState<IntakeList | null>(null);
@@ -17,7 +17,7 @@ export function IntakeContent() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const toast = useToast();
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audio = useRef<Blob | null>(null);
@@ -64,7 +64,6 @@ export function IntakeContent() {
 
   const submit = useCallback(async () => {
     setBusy(true);
-    setMsg(null);
     const fd = new FormData();
     if (text.trim()) fd.append('text', text.trim());
     if (project.trim()) fd.append('project', project.trim());
@@ -74,45 +73,68 @@ export function IntakeContent() {
       const res = await fetch('/api/intake', { method: 'POST', body: fd });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setText(''); setProject(''); setPhoto(null); audio.current = null;
-      setMsg('✅ queued');
+      toast.success('Принято в очередь');
       fetchList();
     } catch (e) {
-      setMsg(`⚠ ${(e as Error).message}`);
+      toast.error(`Не удалось отправить: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
-  }, [text, project, photo, fetchList]);
+  }, [text, project, photo, fetchList, toast]);
+
+  const items = doc?.items ?? [];
 
   return (
     <div>
-      <div style={card}>
-        <textarea style={{ ...input, minHeight: 70 }} placeholder="Задача Claude'у…" value={text} onChange={(e) => setText(e.target.value)} />
-        <input style={input} placeholder="проект (опц.) — пусто = триаж определит" value={project} onChange={(e) => setProject(e.target.value)} />
+      <Card style={{ marginBottom: 12 }}>
+        <Textarea
+          style={{ marginBottom: 8 }}
+          placeholder="Задача Claude'у…"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <Input
+          style={{ marginBottom: 8 }}
+          placeholder="проект (опц.) — пусто = триаж определит"
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+        />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
           {!recording
-            ? <button onClick={startRec} style={{ padding: '6px 12px' }}>🎙 запись</button>
-            : <button onClick={stopRec} style={{ padding: '6px 12px', color: '#c00' }}>⏹ стоп</button>}
+            ? <Button variant="secondary" size="sm" onClick={startRec}>🎙 Запись</Button>
+            : <Button variant="danger" size="sm" onClick={stopRec}>⏹ Стоп</Button>}
           {audio.current && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>голос готов</span>}
-          <button onClick={submit} disabled={busy} style={{ padding: '6px 16px', marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8 }}>
-            {busy ? '…' : 'Отправить'}
-          </button>
+          <Button style={{ marginLeft: 'auto' }} busy={busy} onClick={submit}>Отправить</Button>
         </div>
-        {msg && <div style={{ marginTop: 8, fontSize: 13 }}>{msg}</div>}
-      </div>
+      </Card>
 
-      {doc?.stale && <div style={{ color: '#b8860b', marginBottom: 12 }}>⚠ stale{doc.fetch_error ? `: ${doc.fetch_error}` : ''}</div>}
-      {(doc?.items ?? []).map((it: IntakeItem) => (
-        <div key={it.id} style={card}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{it.source === 'telegram' ? '✈' : '🌐'}</span>
-            <strong style={{ flex: 1, fontSize: 15 }}>{it.raw_text.slice(0, 120) || '(media)'}</strong>
-            {it.target_project && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{it.target_project}</span>}
-            <span style={{ fontSize: 12, color: 'var(--accent)' }}>{routeLabel(it.route)}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 110, textAlign: 'right' }}>{statusLabel(it.status)}</span>
-          </div>
+      {doc?.stale && (
+        <div style={{ color: 'var(--amber)', marginBottom: 12 }}>
+          ⚠ данные могли устареть{doc.fetch_error ? `: ${doc.fetch_error}` : ''}
         </div>
+      )}
+
+      {doc === null && <Skeleton lines={3} />}
+
+      {items.map((it: IntakeItem) => (
+        <Card key={it.id} style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{it.source === 'telegram' ? '✈' : '🌐'}</span>
+            <strong style={{ flex: 1, fontSize: 13.5, minWidth: 200 }}>{it.raw_text.slice(0, 120) || '(медиа)'}</strong>
+            {it.target_project && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{it.target_project}</span>}
+            <Badge tone="accent">{routeLabel(it.route)}</Badge>
+            <Badge tone={statusTone(it.status)}>{statusLabel(it.status)}</Badge>
+          </div>
+        </Card>
       ))}
+
+      {doc !== null && items.length === 0 && (
+        <EmptyState
+          title="Входящих нет"
+          hint="Всё разобрано. Новые задачи попадают сюда из Telegram и формы выше: триаж определит маршрут и проект."
+        />
+      )}
     </div>
   );
 }
