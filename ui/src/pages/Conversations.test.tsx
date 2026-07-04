@@ -100,6 +100,55 @@ test('ответ агента по WS появляется в ленте и сн
   expect(screen.queryByText('печатает…')).toBeNull();
 });
 
+test('батч из двух WS-сообщений обрабатывается целиком', async () => {
+  renderPage();
+  await screen.findByPlaceholderText('Сообщение агенту…');
+
+  act(() => {
+    FakeWebSocket.last?.onmessage?.({
+      data: JSON.stringify({
+        type: 'message',
+        agent_id: 'a1',
+        timestamp: '2026-07-05T12:00:00Z',
+        data: { id: 7, role: 'assistant', text: 'первое сообщение', time: '12:00' },
+      }),
+    });
+    FakeWebSocket.last?.onmessage?.({
+      data: JSON.stringify({
+        type: 'message',
+        agent_id: 'a1',
+        timestamp: '2026-07-05T12:00:01Z',
+        data: { id: 8, role: 'assistant', text: 'второе сообщение', time: '12:00' },
+      }),
+    });
+  });
+
+  expect(await screen.findByText('первое сообщение')).toBeTruthy();
+  expect(await screen.findByText('второе сообщение')).toBeTruthy();
+});
+
+test('agent_stopped снимает «печатает…» даже без message-события', async () => {
+  renderPage();
+  const input = await screen.findByPlaceholderText('Сообщение агенту…');
+  fireEvent.change(input, { target: { value: 'долгий запрос' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  await screen.findByText('печатает…');
+
+  act(() => {
+    FakeWebSocket.last?.onmessage?.({
+      data: JSON.stringify({
+        type: 'agent_stopped',
+        agent_id: 'a1',
+        timestamp: '2026-07-05T12:00:02Z',
+      }),
+    });
+  });
+
+  await waitFor(() => {
+    expect(screen.queryByText('печатает…')).toBeNull();
+  });
+});
+
 test('кнопка «Отменить» шлёт abort и снимает индикатор', async () => {
   renderPage();
   const input = await screen.findByPlaceholderText('Сообщение агенту…');

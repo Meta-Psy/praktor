@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import type { WsEvent } from '../contexts/WebSocketContext';
 import {
   Badge, Button, Card, EmptyState, Input, PageHeader, Skeleton, Spinner, Textarea, useToast,
 } from '../components/ui';
@@ -33,14 +34,18 @@ function Conversations() {
   const [messages, setMessages] = useState<Message[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // awaiting: агент «печатает». Снимается при получении ответа (assistant-сообщение) или
+  // при agent_stopped (тихое завершение без текста — известное ограничение, лечится кнопкой «Отменить»).
   const [awaiting, setAwaiting] = useState<Record<string, boolean>>({});
-  const [sending, setSending] = useState(false);
+  const [sendingIds, setSendingIds] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchActive, setSearchActive] = useState(false);
   const { events } = useWebSocket();
   const toast = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastSeenRef = useRef<WsEvent | null>(null);
+  const fetchEpoch = useRef(0);
 
   useEffect(() => {
     fetch('/api/agents/definitions')
@@ -70,34 +75,41 @@ function Conversations() {
     setSearchQuery('');
     setSearchActive(false);
     setMessages(null);
+    const epoch = ++fetchEpoch.current;
     fetch(`/api/agents/definitions/${selectedAgentId}/messages`)
       .then((res) => res.json())
-      .then((data) => setMessages(Array.isArray(data) ? data : []))
-      .catch(() => setMessages([]));
+      .then((data) => {
+        if (fetchEpoch.current !== epoch) return;
+        setMessages(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (fetchEpoch.current !== epoch) return;
+        setMessages([]);
+      });
   }, [selectedAgentId]);
 
-  // Живые события: статусы контейнеров и новые сообщения
-  useEffect(() => {
-    const latest = events[events.length - 1];
-    if (!latest) return;
-    const aid = latest.agent_id;
+  // Обработка одного WS-события: статусы контейнеров и новые сообщения
+  const processEvent = (ev: WsEvent) => {
+    const aid = ev.agent_id;
     if (!aid) return;
 
-    if (latest.type === 'agent_started') {
+    if (ev.type === 'agent_started') {
       setRunningIds((prev) => new Set(prev).add(aid));
       return;
     }
-    if (latest.type === 'agent_stopped') {
+    if (ev.type === 'agent_stopped') {
       setRunningIds((prev) => {
         const next = new Set(prev);
         next.delete(aid);
         return next;
       });
+      // Тихое завершение (агент отработал без message-события) не должно оставлять «печатает…» навечно.
+      setAwaiting((prev) => (prev[aid] ? { ...prev, [aid]: false } : prev));
       return;
     }
-    if (latest.type !== 'message') return;
+    if (ev.type !== 'message') return;
 
-    const d = latest.data as WsMessageData | null;
+    const d = (ev.data ?? null) as WsMessageData | null;
     if (!d || d.id === undefined) return;
     const msg: Message = { ...d, id: String(d.id) };
 
@@ -111,6 +123,21 @@ function Conversations() {
         return [...list, msg];
       });
     }
+  };
+
+  // Живые события: курсор по ссылке на последний обработанный элемент — индексы
+  // сдвигаются, т.к. провайдер обрезает массив events до последних 500.
+  useEffect(() => {
+    if (events.length === 0) return;
+    let start = 0;
+    if (lastSeenRef.current) {
+      const idx = events.lastIndexOf(lastSeenRef.current);
+      start = idx >= 0 ? idx + 1 : 0;
+    }
+    for (let i = start; i < events.length; i++) {
+      processEvent(events[i]);
+    }
+    lastSeenRef.current = events[events.length - 1];
   }, [events, selectedAgentId, searchActive]);
 
   useEffect(() => {
@@ -121,9 +148,9 @@ function Conversations() {
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || !selectedAgentId || sending) return;
+    if (!text || !selectedAgentId || sendingIds[selectedAgentId]) return;
     const agentID = selectedAgentId;
-    setSending(true);
+    setSendingIds((prev) => ({ ...prev, [agentID]: true }));
     try {
       const res = await fetch(`/api/agents/definitions/${agentID}/message`, {
         method: 'POST',
@@ -139,7 +166,7 @@ function Conversations() {
     } catch (err) {
       toast.error(`Не удалось отправить: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setSending(false);
+      setSendingIds((prev) => ({ ...prev, [agentID]: false }));
     }
   };
 
@@ -159,10 +186,17 @@ function Conversations() {
     if (!selectedAgentId || !searchQuery.trim()) return;
     setIsSearching(true);
     setSearchActive(true);
+    const epoch = ++fetchEpoch.current;
     fetch(`/api/agents/definitions/${selectedAgentId}/messages/search?q=${encodeURIComponent(searchQuery.trim())}`)
       .then((res) => res.json())
-      .then((data) => setMessages(Array.isArray(data) ? data : []))
-      .catch(() => setMessages([]))
+      .then((data) => {
+        if (fetchEpoch.current !== epoch) return;
+        setMessages(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (fetchEpoch.current !== epoch) return;
+        setMessages([]);
+      })
       .finally(() => setIsSearching(false));
   };
 
@@ -171,15 +205,23 @@ function Conversations() {
     setSearchActive(false);
     if (!selectedAgentId) return;
     setMessages(null);
+    const epoch = ++fetchEpoch.current;
     fetch(`/api/agents/definitions/${selectedAgentId}/messages`)
       .then((res) => res.json())
-      .then((data) => setMessages(Array.isArray(data) ? data : []))
-      .catch(() => setMessages([]));
+      .then((data) => {
+        if (fetchEpoch.current !== epoch) return;
+        setMessages(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (fetchEpoch.current !== epoch) return;
+        setMessages([]);
+      });
   };
 
   const selectedAgent = agents?.find((a) => a.id === selectedAgentId) ?? null;
   const agentAwaiting = selectedAgentId ? !!awaiting[selectedAgentId] : false;
   const selectedOnline = selectedAgentId ? runningIds.has(selectedAgentId) : false;
+  const sending = selectedAgentId ? !!sendingIds[selectedAgentId] : false;
 
   return (
     <div>
