@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Badge, Button, Card, Input, Skeleton, Tabs, Textarea, useToast } from './ui';
 
 interface MCPServerConfig {
   type: 'stdio' | 'http';
@@ -45,91 +46,26 @@ interface AgentExtensions {
   _status?: ExtensionStatus;
 }
 
-const card: React.CSSProperties = {
-  background: 'var(--bg-card)',
+const itemBox: React.CSSProperties = {
   border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: 20,
-  boxShadow: 'var(--shadow)',
-};
-
-const tabStyle = (active: boolean): React.CSSProperties => ({
-  padding: '8px 16px',
-  background: active ? 'var(--accent)' : 'transparent',
-  color: active ? '#fff' : 'var(--text-secondary)',
-  border: active ? 'none' : '1px solid var(--border)',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: 14,
-  fontWeight: 600,
-});
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
+  borderRadius: 8,
+  padding: 12,
+  marginBottom: 12,
   background: 'var(--bg-input)',
-  color: 'var(--text-primary)',
+};
+
+const rowBox: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '8px 12px',
   border: '1px solid var(--border)',
   borderRadius: 6,
-  fontSize: 14,
-  boxSizing: 'border-box',
+  marginBottom: 8,
+  background: 'var(--bg-input)',
 };
 
-
-const textareaStyle: React.CSSProperties = {
-  ...inputStyle,
-  fontFamily: 'monospace',
-  minHeight: 120,
-  resize: 'vertical',
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '6px 18px',
-  background: 'var(--accent)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: 14,
-  fontWeight: 600,
-};
-
-const btnDanger: React.CSSProperties = {
-  padding: '4px 12px',
-  background: 'var(--red-muted, #3a1515)',
-  color: 'var(--red-light, #f87171)',
-  border: '1px solid var(--red-light, #f87171)',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: 13,
-};
-
-const btnSmall: React.CSSProperties = {
-  padding: '4px 12px',
-  background: 'var(--accent-muted)',
-  color: 'var(--accent)',
-  border: '1px solid var(--accent)',
-  borderRadius: 6,
-  cursor: 'pointer',
-  fontSize: 13,
-};
-
-const installedBadge: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '1px 8px',
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 600,
-  background: 'rgba(34, 197, 94, 0.15)',
-  color: '#4ade80',
-  marginLeft: 8,
-};
-
-const disabledBadge: React.CSSProperties = {
-  ...installedBadge,
-  background: 'rgba(251, 191, 36, 0.15)',
-  color: '#fbbf24',
-};
+const mono: React.CSSProperties = { fontFamily: 'monospace' };
 
 // MCP Servers tab
 function MCPServersTab({
@@ -143,6 +79,7 @@ function MCPServersTab({
   const [newType, setNewType] = useState<'' | 'stdio' | 'http'>('');
   const [editing, setEditing] = useState<string | null>(null);
   const [editJSON, setEditJSON] = useState('');
+  const toast = useToast();
 
   const addServer = () => {
     if (!newName.trim() || !newType) return;
@@ -170,101 +107,77 @@ function MCPServersTab({
       onChange({ ...servers, [editing]: parsed });
       setEditing(null);
     } catch {
-      alert('Invalid JSON');
+      toast.error('Некорректный JSON');
     }
   };
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <input
+        <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Server name"
-          style={{ ...inputStyle, width: 200 }}
+          placeholder="Имя сервера"
+          style={{ width: 200 }}
           onKeyDown={(e) => e.key === 'Enter' && addServer()}
         />
         <select
+          className="ui-input"
           value={newType}
           onChange={(e) => setNewType(e.target.value as 'stdio' | 'http')}
-          style={{ ...inputStyle, width: 130 }}
+          style={{ width: 130 }}
         >
-          <option value="" disabled>Transport</option>
+          <option value="" disabled>Транспорт</option>
           <option value="http">http</option>
           <option value="stdio">stdio</option>
         </select>
-        <button style={btnSmall} onClick={addServer}>
-          Add
-        </button>
+        <Button variant="secondary" size="sm" onClick={addServer}>Добавить</Button>
       </div>
 
       {Object.entries(servers).map(([name, srv]) => (
-        <div
-          key={name}
-          style={{
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: 12,
-            marginBottom: 12,
-            background: 'var(--bg-input)',
-          }}
-        >
+        <div key={name} style={itemBox}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div>
-              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{name}</span>
-              <span
-                style={{
-                  marginLeft: 8,
-                  padding: '1px 8px',
-                  borderRadius: 999,
-                  fontSize: 12,
-                  background: 'var(--accent-muted)',
-                  color: 'var(--accent)',
-                }}
-              >
-                {srv.type}
-              </span>
+              <span style={{ fontWeight: 600 }}>{name}</span>
+              <Badge tone="accent" style={{ marginLeft: 8 }}>{srv.type}</Badge>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                style={btnSmall}
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   setEditing(editing === name ? null : name);
                   setEditJSON(JSON.stringify(srv, null, 2));
                 }}
               >
-                {editing === name ? 'Cancel' : 'Edit'}
-              </button>
-              <button style={btnDanger} onClick={() => removeServer(name)}>
-                Remove
-              </button>
+                {editing === name ? 'Отмена' : 'Изменить'}
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => removeServer(name)}>Удалить</Button>
             </div>
           </div>
-          {srv.type === 'stdio' && !editing && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+          {srv.type === 'stdio' && editing !== name && (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', ...mono }}>
               {srv.command} {(srv.args || []).join(' ')}
             </div>
           )}
-          {srv.type === 'http' && !editing && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{srv.url}</div>
+          {srv.type === 'http' && editing !== name && (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', ...mono }}>{srv.url}</div>
           )}
           {editing === name && (
             <div style={{ marginTop: 8 }}>
-              <textarea
+              <Textarea
                 value={editJSON}
                 onChange={(e) => setEditJSON(e.target.value)}
-                style={{ ...textareaStyle, minHeight: 150 }}
+                style={{ minHeight: 150, ...mono }}
               />
-              <button style={{ ...btnPrimary, marginTop: 8 }} onClick={saveEdit}>
-                Apply
-              </button>
+              <Button size="sm" style={{ marginTop: 8 }} onClick={saveEdit}>Применить</Button>
             </div>
           )}
         </div>
       ))}
 
       {Object.keys(servers).length === 0 && (
-        <div style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>No MCP servers configured</div>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>MCP-серверы не настроены</div>
       )}
     </div>
   );
@@ -313,22 +226,20 @@ function PluginsTab({
 
   return (
     <div>
-      <h4 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>Marketplaces</h4>
+      <h4 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>Маркетплейсы</h4>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-        Add marketplace sources (e.g., owner/repo) before installing their plugins. The <code style={{ fontSize: 12 }}>claude-plugins-official</code> marketplace is registered by default.
+        Добавьте источник (например, owner/repo) до установки его плагинов. Маркетплейс <code style={{ fontSize: 12 }}>claude-plugins-official</code> зарегистрирован по умолчанию.
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <input
+        <Input
           value={newSource}
           onChange={(e) => setNewSource(e.target.value)}
-          placeholder="owner/repo or https://example.com/marketplace.json"
-          style={{ ...inputStyle, flex: 1 }}
+          placeholder="owner/repo или https://example.com/marketplace.json"
+          style={{ flex: 1 }}
           onKeyDown={(e) => e.key === 'Enter' && addMarketplace()}
         />
-        <button style={btnSmall} onClick={addMarketplace}>
-          Add
-        </button>
+        <Button variant="secondary" size="sm" onClick={addMarketplace}>Добавить</Button>
       </div>
 
       {marketplaces.map((m, i) => {
@@ -336,50 +247,34 @@ function PluginsTab({
           (line) => line.includes(m.source) || line.includes(m.name || deriveName(m.source))
         );
         return (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              marginBottom: 8,
-              background: 'var(--bg-input)',
-            }}
-          >
+          <div key={i} style={rowBox}>
             <div>
-              <span style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text-primary)' }}>{m.source}</span>
+              <span style={{ fontSize: 14, ...mono }}>{m.source}</span>
               <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
                 ({m.name || deriveName(m.source)})
               </span>
-              {isInstalled && <span style={installedBadge}>Registered</span>}
+              {isInstalled && <Badge tone="ok" style={{ marginLeft: 8 }}>зарегистрирован</Badge>}
             </div>
-            <button style={btnDanger} onClick={() => removeMarketplace(i)}>
-              Remove
-            </button>
+            <Button variant="danger" size="sm" onClick={() => removeMarketplace(i)}>Удалить</Button>
           </div>
         );
       })}
 
       {marketplaces.length === 0 && (
-        <div style={{ color: 'var(--text-tertiary)', fontSize: 14, marginBottom: 16 }}>No additional marketplaces configured</div>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 14, marginBottom: 16 }}>Дополнительных маркетплейсов нет</div>
       )}
 
-      <h4 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: '20px 0 8px' }}>Plugins</h4>
+      <h4 style={{ fontSize: 14, fontWeight: 600, margin: '20px 0 8px' }}>Плагины</h4>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <input
+        <Input
           value={newPlugin}
           onChange={(e) => setNewPlugin(e.target.value)}
           placeholder="plugin-name@marketplace"
-          style={{ ...inputStyle, flex: 1 }}
+          style={{ flex: 1 }}
           onKeyDown={(e) => e.key === 'Enter' && addPlugin()}
         />
-        <button style={btnSmall} onClick={addPlugin}>
-          Add
-        </button>
+        <Button variant="secondary" size="sm" onClick={addPlugin}>Добавить</Button>
       </div>
 
       {plugins.map((p, i) => {
@@ -388,46 +283,32 @@ function PluginsTab({
           (ps) => ps?.name && (ps.name === p.name || ps.name === pluginBase || ps.name.startsWith(pluginBase + '@'))
         );
         return (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '8px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              marginBottom: 8,
-              background: 'var(--bg-input)',
-              opacity: p.disabled ? 0.6 : 1,
-            }}
-          >
+          <div key={i} style={{ ...rowBox, opacity: p.disabled ? 0.6 : 1 }}>
             <div>
-              <span style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--text-primary)' }}>{p.name}</span>
-              {pluginStatus && !p.disabled && <span style={installedBadge}>Installed</span>}
-              {p.disabled && <span style={disabledBadge}>Disabled</span>}
+              <span style={{ fontSize: 14, ...mono }}>{p.name}</span>
+              {pluginStatus && !p.disabled && <Badge tone="ok" style={{ marginLeft: 8 }}>установлен</Badge>}
+              {p.disabled && <Badge tone="warn" style={{ marginLeft: 8 }}>отключён</Badge>}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                style={btnSmall}
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   const updated = [...plugins];
                   updated[i] = { ...p, disabled: !p.disabled };
                   onChangePlugins(updated);
                 }}
               >
-                {p.disabled ? 'Enable' : 'Disable'}
-              </button>
-              <button style={btnDanger} onClick={() => removePlugin(i)}>
-                Remove
-              </button>
+                {p.disabled ? 'Включить' : 'Отключить'}
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => removePlugin(i)}>Удалить</Button>
             </div>
           </div>
         );
       })}
 
       {plugins.length === 0 && (
-        <div style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>No plugins configured</div>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>Плагины не настроены</div>
       )}
     </div>
   );
@@ -523,41 +404,31 @@ function SkillsTab({
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <input
+        <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          placeholder="Skill name (e.g. code-review)"
-          style={{ ...inputStyle, width: 300 }}
+          placeholder="Имя навыка (например, code-review)"
+          style={{ width: 300 }}
           onKeyDown={(e) => e.key === 'Enter' && addSkill()}
         />
-        <button style={btnSmall} onClick={addSkill}>
-          Add
-        </button>
+        <Button variant="secondary" size="sm" onClick={addSkill}>Добавить</Button>
       </div>
 
       {Object.entries(skills).map(([name, skill]) => (
-        <div
-          key={name}
-          style={{
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: 12,
-            marginBottom: 12,
-            background: 'var(--bg-input)',
-          }}
-        >
+        <div key={name} style={itemBox}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div>
-              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{name}</span>
+              <span style={{ fontWeight: 600 }}>{name}</span>
               {skill.files && Object.keys(skill.files).length > 0 && (
                 <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
-                  {Object.keys(skill.files).length} file{Object.keys(skill.files).length !== 1 ? 's' : ''}
+                  файлов: {Object.keys(skill.files).length}
                 </span>
               )}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                style={btnSmall}
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   if (editing === name) {
                     setEditing(null);
@@ -569,11 +440,9 @@ function SkillsTab({
                   }
                 }}
               >
-                {editing === name ? 'Cancel' : 'Edit'}
-              </button>
-              <button style={btnDanger} onClick={() => removeSkill(name)}>
-                Remove
-              </button>
+                {editing === name ? 'Отмена' : 'Изменить'}
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => removeSkill(name)}>Удалить</Button>
             </div>
           </div>
           {editing !== name && skill.description && (
@@ -581,22 +450,22 @@ function SkillsTab({
           )}
           {editing === name && (
             <div style={{ marginTop: 8 }}>
-              <input
+              <Input
                 value={editDesc}
                 onChange={(e) => setEditDesc(e.target.value)}
-                placeholder="Description"
-                style={{ ...inputStyle, marginBottom: 8 }}
+                placeholder="Описание"
+                style={{ marginBottom: 8 }}
               />
-              <textarea
+              <Textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                placeholder="Skill content (SKILL.md body)"
-                style={textareaStyle}
+                placeholder="Содержимое навыка (тело SKILL.md)"
+                style={{ minHeight: 120, ...mono }}
               />
 
               <div style={{ marginTop: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Files</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 600 }}>Файлы</span>
                   <input
                     type="file"
                     multiple
@@ -604,8 +473,8 @@ function SkillsTab({
                     style={{ display: 'none' }}
                     id={`skill-files-${name}`}
                   />
-                  <label htmlFor={`skill-files-${name}`} style={{ ...btnSmall, display: 'inline-block' }}>
-                    Upload Files
+                  <label htmlFor={`skill-files-${name}`} className="ui-btn ui-btn--secondary ui-btn--sm" style={{ display: 'inline-flex' }}>
+                    Загрузить файлы
                   </label>
                 </div>
 
@@ -625,39 +494,35 @@ function SkillsTab({
                         background: 'var(--bg-card)',
                       }}
                     >
-                      <input
+                      <Input
                         defaultValue={path}
                         onBlur={(e) => renameFile(path, e.target.value.trim())}
-                        style={{ ...inputStyle, flex: 1, fontSize: 13, fontFamily: 'monospace' }}
-                        title="Relative file path (e.g. scripts/search.sh)"
+                        style={{ flex: 1, fontSize: 13, ...mono }}
+                        title="Относительный путь файла (например, scripts/search.sh)"
                       />
                       <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
                         {formatFileSize(sizeBytes)}
                       </span>
-                      <button style={btnDanger} onClick={() => removeFile(path)}>
-                        Remove
-                      </button>
+                      <Button variant="danger" size="sm" onClick={() => removeFile(path)}>Удалить</Button>
                     </div>
                   );
                 })}
 
                 {Object.keys(editFiles).length === 0 && (
                   <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
-                    No additional files. Upload scripts or config files to include alongside SKILL.md.
+                    Дополнительных файлов нет. Загрузите скрипты или конфиги, которые пойдут рядом со SKILL.md.
                   </div>
                 )}
               </div>
 
-              <button style={{ ...btnPrimary, marginTop: 8 }} onClick={saveEdit}>
-                Apply
-              </button>
+              <Button size="sm" style={{ marginTop: 8 }} onClick={saveEdit}>Применить</Button>
             </div>
           )}
         </div>
       ))}
 
       {Object.keys(skills).length === 0 && (
-        <div style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>No skills configured</div>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>Навыки не настроены</div>
       )}
     </div>
   );
@@ -666,11 +531,11 @@ function SkillsTab({
 // Main component
 export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
   const [ext, setExt] = useState<AgentExtensions>({});
-  const [tab, setTab] = useState<'mcp' | 'plugins' | 'skills'>('mcp');
+  const [tab, setTab] = useState('mcp');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     setLoading(true);
@@ -697,40 +562,40 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || `HTTP ${res.status}`);
         }
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        toast.success('Сохранено');
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => toast.error(`Не удалось сохранить расширения: ${err.message}`))
       .finally(() => setSaving(false));
   };
 
-  if (loading) return <div style={{ color: 'var(--text-tertiary)', fontSize: 15 }}>Loading extensions...</div>;
+  if (loading) {
+    return (
+      <Card>
+        <Skeleton lines={3} />
+      </Card>
+    );
+  }
 
   return (
-    <div style={card}>
+    <Card>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <h3 style={{ fontSize: 20, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Extensions</h3>
-          <p style={{ fontSize: 15, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-            MCP servers, plugins, and skills
+          <h3 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Расширения</h3>
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+            MCP-серверы, плагины и навыки
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {saved && <span style={{ color: 'var(--green)', fontSize: 15, fontWeight: 500 }}>Saved</span>}
-          <button onClick={save} disabled={saving} style={btnPrimary}>
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
+        <Button onClick={save} busy={saving}>Сохранить</Button>
       </div>
 
       {error && (
         <div
           style={{
             padding: '8px 12px',
-            background: 'var(--red-muted, #3a1515)',
-            border: '1px solid var(--red-light, #f87171)',
+            background: 'var(--red-muted)',
+            border: '1px solid var(--red)',
             borderRadius: 6,
-            color: 'var(--red-light, #f87171)',
+            color: 'var(--red)',
             fontSize: 14,
             marginBottom: 16,
           }}
@@ -739,13 +604,15 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {(['mcp', 'plugins', 'skills'] as const).map((t) => (
-          <button key={t} style={tabStyle(tab === t)} onClick={() => setTab(t)}>
-            {t === 'mcp' ? 'MCP Servers' : t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={[
+          { id: 'mcp', label: 'MCP' },
+          { id: 'plugins', label: 'Плагины' },
+          { id: 'skills', label: 'Навыки' },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
 
       {tab === 'mcp' && (
         <MCPServersTab
@@ -765,6 +632,6 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
       {tab === 'skills' && (
         <SkillsTab skills={ext.skills || {}} onChange={(skills) => setExt({ ...ext, skills })} />
       )}
-    </div>
+    </Card>
   );
 }
