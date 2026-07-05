@@ -128,6 +128,34 @@ describe('buildFeed', () => {
     expect(out).toHaveLength(30);
     expect(out[0].key).toBe('msg-39');
   });
+
+  test('события двух отрядов в одну секунду не схлопываются', () => {
+    const out = buildFeed([], [
+      ev('swarm_completed', { results_count: 1 }, { swarm_id: 'sw1' }),
+      ev('swarm_completed', { results_count: 2 }, { swarm_id: 'sw2' }),
+    ], {});
+    expect(out).toHaveLength(2);
+  });
+
+  test('числовой id из WS дедуплицируется со строковым id из seed', () => {
+    const seeded: RecentMessage[] = [
+      { id: '7', agent: 'dev', role: 'assistant', text: 'x', time: '07:00', created_at: '2026-07-05T07:00:00Z' },
+    ];
+    const out = buildFeed(seeded, [
+      ev('message', { id: 7, role: 'assistant', text: 'x', time: '07:00' }, { agent_id: 'dev' }),
+    ], { dev: 'dev' });
+    expect(out.filter((i) => i.key === 'msg-7')).toHaveLength(1);
+  });
+
+  test('сообщение из seed новее событий встаёт по реальному времени', () => {
+    const seeded: RecentMessage[] = [
+      { id: '9', agent: 'dev', role: 'assistant', text: 'late', time: '09:00', created_at: '2026-07-05T09:00:00Z' },
+    ];
+    const out = buildFeed(seeded, [
+      ev('agent_started', {}, { agent_id: 'dev', timestamp: '2026-07-05T08:00:00Z' }),
+    ], { dev: 'dev' });
+    expect(out[0].key).toBe('msg-9');
+  });
 });
 
 test('runningSwarms считает только running', () => {

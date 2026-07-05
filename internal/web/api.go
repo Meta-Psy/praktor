@@ -539,11 +539,12 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 			agentName = m.AgentID
 		}
 		msg := map[string]string{
-			"id":    fmt.Sprintf("%d", m.ID),
-			"agent": agentName,
-			"role":  mapSenderToRole(m.Sender),
-			"text":  m.Content,
-			"time":  formatMessageTime(m.CreatedAt),
+			"id":         fmt.Sprintf("%d", m.ID),
+			"agent":      agentName,
+			"role":       mapSenderToRole(m.Sender),
+			"text":       m.Content,
+			"time":       formatMessageTime(m.CreatedAt),
+			"created_at": m.CreatedAt.UTC().Format(time.RFC3339),
 		}
 		if tr := extractTerminalReason(m.Metadata); tr != "" {
 			msg["terminal_reason"] = tr

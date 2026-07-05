@@ -8,6 +8,7 @@ export interface RecentMessage {
   role: string;
   text: string;
   time: string;
+  created_at?: string;
 }
 
 export interface StatusData {
@@ -152,48 +153,55 @@ function eventToFeedItem(e: WsEvent, agentNames: Record<string, string>): FeedIt
     }
     case 'swarm_started': {
       const nm = typeof data.name === 'string' && data.name ? `«${data.name}» ` : '';
-      return { key: `sws-${e.timestamp}`, time: fmtTime(e.timestamp), icon: '🐝', text: `отряд ${nm}запущен` };
+      return { key: `sws-${e.swarm_id ?? ''}-${e.timestamp}`, time: fmtTime(e.timestamp), icon: '🐝', text: `отряд ${nm}запущен` };
     }
     case 'swarm_agent_completed':
       return {
-        key: `swa-${String(data.role)}-${e.timestamp}`,
+        key: `swa-${e.swarm_id ?? ''}-${String(data.role)}-${e.timestamp}`,
         time: fmtTime(e.timestamp),
         icon: '🐝',
         text: `отряд: ${String(data.role ?? 'агент')} завершил (${data.status === 'error' ? 'сбой' : 'успех'})`,
       };
     case 'swarm_completed':
-      return { key: `swc-${e.timestamp}`, time: fmtTime(e.timestamp), icon: '🐝', text: 'отряд завершён' };
+      return { key: `swc-${e.swarm_id ?? ''}-${e.timestamp}`, time: fmtTime(e.timestamp), icon: '🐝', text: 'отряд завершён' };
     case 'swarm_failed':
-      return { key: `swf-${e.timestamp}`, time: fmtTime(e.timestamp), icon: '🐝', text: 'отряд: сбой' };
+      return { key: `swf-${e.swarm_id ?? ''}-${e.timestamp}`, time: fmtTime(e.timestamp), icon: '🐝', text: 'отряд: сбой' };
     default:
       return null;
   }
 }
 
 // buildFeed строит ленту «Активность»: seed из /api/status (история из БД,
-// новыми вперёд) + живые WS-события (в порядке поступления). Новые сверху,
-// дубликаты сообщений (seed ∩ WS) схлопываются по key, максимум FEED_LIMIT.
+// новыми вперёд) + живые WS-события. Слияние — по реальному ISO-времени
+// (created_at у seed, timestamp у событий): после WS-обрыва seed может нести
+// сообщения новее части буфера событий, позиционное слияние их бы сместило.
+// Новые сверху, дубликаты схлопываются по key, максимум FEED_LIMIT.
 export function buildFeed(
   seed: RecentMessage[],
   events: WsEvent[],
   agentNames: Record<string, string>,
 ): FeedItem[] {
-  const items: FeedItem[] = [];
-  // seed разворачиваем в хронологию, чтобы после общего разворота новые были сверху
+  const entries: { sort: string; item: FeedItem }[] = [];
+  // seed разворачиваем в хронологию: при равных sort-ключах стабильная
+  // сортировка сохраняет порядок вставки
   for (const m of [...seed].reverse()) {
     if (m.role !== 'assistant') continue;
-    items.push({ key: `msg-${m.id}`, time: m.time, icon: '💬', text: `${m.agent} ответил` });
+    entries.push({
+      sort: m.created_at ?? '',
+      item: { key: `msg-${m.id}`, time: m.time, icon: '💬', text: `${m.agent} ответил` },
+    });
   }
   for (const e of events) {
     const it = eventToFeedItem(e, agentNames);
-    if (it) items.push(it);
+    if (it) entries.push({ sort: e.timestamp, item: it });
   }
+  entries.sort((a, b) => (a.sort < b.sort ? -1 : a.sort > b.sort ? 1 : 0));
   const seen = new Set<string>();
   const out: FeedItem[] = [];
-  for (let i = items.length - 1; i >= 0 && out.length < FEED_LIMIT; i--) {
-    if (seen.has(items[i].key)) continue;
-    seen.add(items[i].key);
-    out.push(items[i]);
+  for (let i = entries.length - 1; i >= 0 && out.length < FEED_LIMIT; i--) {
+    if (seen.has(entries[i].item.key)) continue;
+    seen.add(entries[i].item.key);
+    out.push(entries[i].item);
   }
   return out;
 }
