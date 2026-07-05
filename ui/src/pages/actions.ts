@@ -33,3 +33,7 @@ export function approvePlan(id: string): Promise<void> {
 export function rejectPlan(id: string, reason: string): Promise<void> {
   return post(`/api/intake/${id}/reject`, { reason });
 }
+
+export function runTaskNow(id: string): Promise<void> {
+  return post(`/api/tasks/${id}/run`);
+}
