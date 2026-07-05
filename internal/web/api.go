@@ -422,6 +422,8 @@ func (s *Server) runTaskNow(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "task not found", http.StatusNotFound)
 		return
 	}
+	// NextRunAt ставится напрямую, в обход schedule.CalculateNextRun (ср. updateTask):
+	// для прошедшей one-shot задачи CalculateNextRun вернул бы nil — запуска бы не было.
 	now := time.Now().UTC()
 	existing.Status = "active"
 	existing.NextRunAt = &now

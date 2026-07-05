@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -138,5 +139,48 @@ func TestRunTaskNowNotFound(t *testing.T) {
 	s.runTaskNow(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("code = %d, want 404", rec.Code)
+	}
+}
+
+func TestRunTaskNowCompletedOneShot(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	reg := registry.New(st, map[string]config.AgentDefinition{
+		"coder": {Description: "Engineer"},
+	}, config.DefaultsConfig{}, t.TempDir())
+	if err := reg.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-time.Hour)
+	task := &store.ScheduledTask{
+		ID:          "t2",
+		AgentID:     "coder",
+		Name:        "Разовая",
+		Schedule:    fmt.Sprintf(`{"kind":"once","at_ms":%d}`, past.UnixMilli()),
+		Prompt:      "раз",
+		ContextMode: "isolated",
+		Status:      "completed",
+	}
+	if err := st.SaveTask(task); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Server{store: st}
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/t2/run", nil)
+	req.SetPathValue("id", "t2")
+	rec := httptest.NewRecorder()
+	s.runTaskNow(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d (%s)", rec.Code, rec.Body)
+	}
+	got, err := st.GetTask("t2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "active" {
+		t.Errorf("status = %q, want active", got.Status)
+	}
+	if got.NextRunAt == nil {
+		t.Fatal("next_run_at = nil: прошедший one-shot должен запускаться немедленно")
 	}
 }
