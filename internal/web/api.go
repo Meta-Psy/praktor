@@ -408,9 +408,9 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, taskToAPI(*existing, s.agentNameMap()))
 }
 
-// runTaskNow sets a scheduled task for immediate execution: next_run_at = now,
-// clears pause/completed status. Execution will be picked up by the scheduler on
-// the next poll cycle; after execution, the schedule is recalculated as normal.
+// runTaskNow ставит дежурство на немедленный запуск: next_run_at = сейчас,
+// паузу/завершённость снимает. Выполнение подхватит планировщик на ближайшем
+// цикле опроса; после запуска расписание пересчитывается как обычно.
 func (s *Server) runTaskNow(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	existing, err := s.store.GetTask(id)
