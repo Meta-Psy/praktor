@@ -49,6 +49,7 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks", s.listTasks)
 	mux.HandleFunc("POST /api/tasks", s.createTask)
 	mux.HandleFunc("PUT /api/tasks/{id}", s.updateTask)
+	mux.HandleFunc("POST /api/tasks/{id}/run", s.runTaskNow)
 	mux.HandleFunc("DELETE /api/tasks/completed", s.deleteCompletedTasks)
 	mux.HandleFunc("DELETE /api/tasks/{id}", s.deleteTask)
 
@@ -407,6 +408,30 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, taskToAPI(*existing, s.agentNameMap()))
 }
 
+// runTaskNow sets a scheduled task for immediate execution: next_run_at = now,
+// clears pause/completed status. Execution will be picked up by the scheduler on
+// the next poll cycle; after execution, the schedule is recalculated as normal.
+func (s *Server) runTaskNow(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	existing, err := s.store.GetTask(id)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		jsonError(w, "task not found", http.StatusNotFound)
+		return
+	}
+	now := time.Now().UTC()
+	existing.Status = "active"
+	existing.NextRunAt = &now
+	if err := s.store.SaveTask(existing); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, taskToAPI(*existing, s.agentNameMap()))
+}
+
 func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.store.DeleteTask(id); err != nil {
@@ -645,6 +670,12 @@ func taskToAPI(t store.ScheduledTask, agentNames map[string]string) map[string]a
 	}
 	if t.NextRunAt != nil {
 		m["next_run"] = formatMessageTime(*t.NextRunAt)
+	}
+	if t.LastStatus != "" {
+		m["last_status"] = t.LastStatus
+	}
+	if t.LastError != "" {
+		m["last_error"] = t.LastError
 	}
 	return m
 }
