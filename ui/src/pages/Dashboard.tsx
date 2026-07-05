@@ -103,6 +103,10 @@ function DecisionCardView({ card, onAct, onRetry }: {
     );
   }
 
+  // Явный guard вместо безусловного return: новый kind в DecisionCard не должен
+  // молча рендериться карточкой сбоя с чужими действиями
+  if (card.kind !== 'failure') return null;
+
   return (
     <Card style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -167,6 +171,8 @@ function Dashboard() {
     if (ag.status === 'fulfilled') {
       const defs = ag.value as { id: string; name?: string }[];
       setAgentNames(Object.fromEntries((Array.isArray(defs) ? defs : []).map((a) => [a.id, a.name || a.id])));
+    } else {
+      failed.push('агенты');
     }
     setFailedSources(failed);
   }, []);
