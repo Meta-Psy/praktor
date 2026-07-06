@@ -207,6 +207,7 @@ POST           /api/agents/definitions/{id}/abort    # Abort active run + drain 
 GET            /api/agents                           # Active agent containers
 GET/POST       /api/tasks                            # List/create scheduled tasks
 PUT/DELETE     /api/tasks/{id}                       # Update/delete task
+POST           /api/tasks/{id}/run                   # Run a scheduled task immediately (clears pause)
 DELETE         /api/tasks/completed                  # Delete all completed tasks
 GET/POST       /api/secrets                          # List/create secrets
 GET/PUT/DELETE /api/secrets/{id}                     # Get/update/delete secret

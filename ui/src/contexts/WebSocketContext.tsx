@@ -12,6 +12,7 @@ import {
 export interface WsEvent {
   type: string;
   agent_id?: string;
+  swarm_id?: string;
   data: unknown;
   timestamp: string;
 }

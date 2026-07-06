@@ -45,7 +45,7 @@ nav a:not(.active):hover {
   .main-content { margin-left: 0 !important; padding: 16px !important; padding-top: 64px !important; }
   .hamburger { display: flex !important; }
   .sidebar-backdrop { display: block !important; }
-  .stats-grid { grid-template-columns: 1fr !important; }
+  .dashboard-grid { grid-template-columns: 1fr !important; }
   .conversations-layout { flex-direction: column; height: auto !important; min-height: 0 !important; }
   .conversations-agents { width: 100% !important; max-height: 150px; }
   .form-grid-2col { grid-template-columns: 1fr !important; }

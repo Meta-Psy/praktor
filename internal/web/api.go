@@ -49,6 +49,7 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/tasks", s.listTasks)
 	mux.HandleFunc("POST /api/tasks", s.createTask)
 	mux.HandleFunc("PUT /api/tasks/{id}", s.updateTask)
+	mux.HandleFunc("POST /api/tasks/{id}/run", s.runTaskNow)
 	mux.HandleFunc("DELETE /api/tasks/completed", s.deleteCompletedTasks)
 	mux.HandleFunc("DELETE /api/tasks/{id}", s.deleteTask)
 
@@ -407,6 +408,32 @@ func (s *Server) updateTask(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, taskToAPI(*existing, s.agentNameMap()))
 }
 
+// runTaskNow ставит дежурство на немедленный запуск: next_run_at = сейчас,
+// паузу/завершённость снимает. Выполнение подхватит планировщик на ближайшем
+// цикле опроса; после запуска расписание пересчитывается как обычно.
+func (s *Server) runTaskNow(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	existing, err := s.store.GetTask(id)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		jsonError(w, "task not found", http.StatusNotFound)
+		return
+	}
+	// NextRunAt ставится напрямую, в обход schedule.CalculateNextRun (ср. updateTask):
+	// для прошедшей one-shot задачи CalculateNextRun вернул бы nil — запуска бы не было.
+	now := time.Now().UTC()
+	existing.Status = "active"
+	existing.NextRunAt = &now
+	if err := s.store.SaveTask(existing); err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResponse(w, taskToAPI(*existing, s.agentNameMap()))
+}
+
 func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.store.DeleteTask(id); err != nil {
@@ -512,11 +539,12 @@ func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
 			agentName = m.AgentID
 		}
 		msg := map[string]string{
-			"id":    fmt.Sprintf("%d", m.ID),
-			"agent": agentName,
-			"role":  mapSenderToRole(m.Sender),
-			"text":  m.Content,
-			"time":  formatMessageTime(m.CreatedAt),
+			"id":         fmt.Sprintf("%d", m.ID),
+			"agent":      agentName,
+			"role":       mapSenderToRole(m.Sender),
+			"text":       m.Content,
+			"time":       formatMessageTime(m.CreatedAt),
+			"created_at": m.CreatedAt.UTC().Format(time.RFC3339),
 		}
 		if tr := extractTerminalReason(m.Metadata); tr != "" {
 			msg["terminal_reason"] = tr
@@ -645,6 +673,12 @@ func taskToAPI(t store.ScheduledTask, agentNames map[string]string) map[string]a
 	}
 	if t.NextRunAt != nil {
 		m["next_run"] = formatMessageTime(*t.NextRunAt)
+	}
+	if t.LastStatus != "" {
+		m["last_status"] = t.LastStatus
+	}
+	if t.LastError != "" {
+		m["last_error"] = t.LastError
 	}
 	return m
 }
