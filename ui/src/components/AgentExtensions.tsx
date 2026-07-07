@@ -545,7 +545,12 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
     fetch(`/api/agents/definitions/${agentId}/extensions`)
       .then((res) => res.json())
       .then((data) => { if (loadEpoch.current === epoch) setExt(data); })
-      .catch((err) => { if (loadEpoch.current === epoch) setError(err.message); })
+      .catch((err) => {
+        if (loadEpoch.current === epoch) {
+          setExt({});
+          setError(err.message);
+        }
+      })
       .finally(() => { if (loadEpoch.current === epoch) setLoading(false); });
   }, [agentId]);
 
@@ -587,7 +592,7 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
             MCP-серверы, плагины и навыки
           </p>
         </div>
-        <Button onClick={save} busy={saving}>Сохранить</Button>
+        <Button onClick={save} busy={saving} disabled={error !== null}>Сохранить</Button>
       </div>
 
       {error && (
