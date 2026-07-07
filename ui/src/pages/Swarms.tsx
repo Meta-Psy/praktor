@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import SwarmGraph, { type SwarmLaunchData } from '../components/SwarmGraph';
 import {
@@ -103,14 +103,14 @@ function Swarms() {
     fetchSwarms();
   }, [fetchSwarms]);
 
-  // React to WebSocket swarm events
+  // React to WebSocket swarm events (с дебаунсом — поток swarm_* не должен бить по API каждым событием)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     const latest = events[events.length - 1];
-    if (!latest) return;
-    const t = latest.type as string;
-    if (t.startsWith('swarm_')) {
-      fetchSwarms();
-    }
+    if (!latest || !latest.type.startsWith('swarm_')) return;
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(fetchSwarms, 500);
+    return () => clearTimeout(debounceRef.current);
   }, [events, fetchSwarms]);
 
   const launchSwarm = async (data: SwarmLaunchData) => {
