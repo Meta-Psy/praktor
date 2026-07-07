@@ -66,3 +66,19 @@ test('success живёт 4с (role=status), error переживает его и
   act(() => { vi.advanceTimersByTime(4000); });
   expect(screen.queryByText('Не удалось сохранить')).toBeNull();
 });
+
+test('повтор той же ошибки продлевает TTL', () => {
+  vi.useFakeTimers();
+  render(
+    <ToastProvider>
+      <Demo />
+    </ToastProvider>
+  );
+  fireEvent.click(screen.getByText('fire'));           // t=0, TTL error = 8000
+  act(() => { vi.advanceTimersByTime(5000); });        // t=5000
+  fireEvent.click(screen.getByText('fire'));           // повтор — TTL должен перезапуститься
+  act(() => { vi.advanceTimersByTime(4000); });        // t=9000 (> исходных 8000)
+  expect(screen.getByText('Не удалось сохранить')).toBeInTheDocument();
+  act(() => { vi.advanceTimersByTime(4000); });        // t=13000 = 5000+8000
+  expect(screen.queryByText('Не удалось сохранить')).toBeNull();
+});

@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -24,13 +25,32 @@ const TOAST_TTL_MS: Record<ToastItem['kind'], number> = { success: 4000, error: 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
+  const itemsRef = useRef<ToastItem[]>([]);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  const remove = useCallback((id: number) => {
+    timers.current.delete(id);
+    itemsRef.current = itemsRef.current.filter((t) => t.id !== id);
+    setItems(itemsRef.current);
+  }, []);
 
   const push = useCallback((kind: ToastItem['kind'], text: string) => {
+    // Повтор того же тоста не дублируется, но продлевает время показа
+    const existing = itemsRef.current.find((t) => t.kind === kind && t.text === text);
+    if (existing) {
+      clearTimeout(timers.current.get(existing.id));
+      timers.current.set(existing.id, setTimeout(() => remove(existing.id), TOAST_TTL_MS[kind]));
+      return;
+    }
     const id = nextId.current++;
-    setItems((prev) =>
-      prev.some((t) => t.kind === kind && t.text === text) ? prev : [...prev, { id, kind, text }]
-    );
-    setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), TOAST_TTL_MS[kind]);
+    itemsRef.current = [...itemsRef.current, { id, kind, text }];
+    setItems(itemsRef.current);
+    timers.current.set(id, setTimeout(() => remove(id), TOAST_TTL_MS[kind]));
+  }, [remove]);
+
+  useEffect(() => {
+    const map = timers.current;
+    return () => { map.forEach(clearTimeout); };
   }, []);
 
   const api = useMemo<ToastApi>(
