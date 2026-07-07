@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { PageHeader, Tabs } from '../components/ui';
+import { PageHeader, Tabs, TabPanel } from '../components/ui';
 import { RadarContent } from './Radar';
 import { IntelContent } from './Intel';
 
@@ -20,7 +20,8 @@ function Recon() {
         active={tab}
         onChange={(id) => setParams(id === 'radar' ? {} : { tab: id }, { replace: true })}
       />
-      {tab === 'radar' ? <RadarContent /> : <IntelContent />}
+      <TabPanel id="radar" active={tab === 'radar'}><RadarContent /></TabPanel>
+      <TabPanel id="intel" active={tab === 'intel'}><IntelContent /></TabPanel>
     </div>
   );
 }

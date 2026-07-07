@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Badge, Button, Card, Input, Skeleton, Tabs, Textarea, useToast } from './ui';
+import { Badge, Button, Card, Input, Skeleton, Tabs, TabPanel, Textarea, useToast } from './ui';
 
 interface MCPServerConfig {
   type: 'stdio' | 'http';
@@ -614,13 +614,13 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
         onChange={setTab}
       />
 
-      {tab === 'mcp' && (
+      <TabPanel id="mcp" active={tab === 'mcp'}>
         <MCPServersTab
           servers={ext.mcp_servers || {}}
           onChange={(servers) => setExt({ ...ext, mcp_servers: servers })}
         />
-      )}
-      {tab === 'plugins' && (
+      </TabPanel>
+      <TabPanel id="plugins" active={tab === 'plugins'}>
         <PluginsTab
           marketplaces={ext.marketplaces || []}
           plugins={ext.plugins || []}
@@ -628,10 +628,10 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
           onChangeMarketplaces={(marketplaces) => setExt({ ...ext, marketplaces })}
           onChangePlugins={(plugins) => setExt({ ...ext, plugins })}
         />
-      )}
-      {tab === 'skills' && (
+      </TabPanel>
+      <TabPanel id="skills" active={tab === 'skills'}>
         <SkillsTab skills={ext.skills || {}} onChange={(skills) => setExt({ ...ext, skills })} />
-      )}
+      </TabPanel>
     </Card>
   );
 }

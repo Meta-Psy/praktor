@@ -8,4 +8,4 @@ export { ConfirmDialog } from './ConfirmDialog';
 export { EmptyState } from './EmptyState';
 export { Spinner, Skeleton } from './Loading';
 export { ToastProvider, useToast } from './Toast';
-export { Tabs } from './Tabs';
+export { Tabs, TabPanel } from './Tabs';
