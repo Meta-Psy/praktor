@@ -5,3 +5,4 @@
   padding: 16px;
 }
 .ui-card--interactive { cursor: pointer; }
+.ui-card--interactive:hover { background: var(--bg-card-hover); border-color: var(--text-muted); }

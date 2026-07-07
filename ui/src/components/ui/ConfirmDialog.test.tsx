@@ -41,3 +41,14 @@ test('busy: Escape и фон не закрывают', () => {
   fireEvent.click(document.querySelector('.ui-modal-backdrop')!);
   expect(onCancel).not.toHaveBeenCalled();
 });
+
+test('confirmDisabled блокирует кнопку подтверждения', () => {
+  const onConfirm = vi.fn();
+  render(
+    <ConfirmDialog open title="Отклонить план?" confirmLabel="Отклонить" confirmDisabled onConfirm={onConfirm} onCancel={() => {}} />
+  );
+  const btn = screen.getByRole('button', { name: 'Отклонить' });
+  expect(btn).toBeDisabled();
+  fireEvent.click(btn);
+  expect(onConfirm).not.toHaveBeenCalled();
+});

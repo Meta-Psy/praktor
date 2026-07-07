@@ -156,6 +156,24 @@ describe('buildFeed', () => {
     ], { dev: 'dev' });
     expect(out[0].key).toBe('msg-9');
   });
+
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+  test('seed с created_at: время форматируется локально', () => {
+    const seeded: RecentMessage[] = [
+      { id: '3', agent: 'dev', role: 'assistant', text: 'x', time: '23:59', created_at: '2026-07-05T07:10:00Z' },
+    ];
+    const out = buildFeed(seeded, [], {});
+    expect(out[0].time).toBe(fmt('2026-07-05T07:10:00Z'));
+  });
+
+  test('WS message: время из timestamp события, не из серверного data.time', () => {
+    const out = buildFeed([], [
+      ev('message', { id: '5', role: 'assistant', text: 'x', time: '23:59' }, { agent_id: 'dev', timestamp: '2026-07-05T07:10:00Z' }),
+    ], { dev: 'dev' });
+    expect(out[0].time).toBe(fmt('2026-07-05T07:10:00Z'));
+  });
 });
 
 test('runningSwarms считает только running', () => {

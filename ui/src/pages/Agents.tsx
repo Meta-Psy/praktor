@@ -33,6 +33,7 @@ function Agents() {
   const toast = useToast();
   const { events } = useWebSocket();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const agentMdEpoch = useRef(0);
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents/definitions')
@@ -61,11 +62,21 @@ function Agents() {
   useEffect(() => {
     if (!selected) return;
     setAgentMdLoading(true);
+    const epoch = ++agentMdEpoch.current;
     fetch(`/api/agents/definitions/${selected.id}/agent-md`)
       .then((res) => res.json())
-      .then((data) => setAgentMd(data.content || ''))
-      .catch(() => setAgentMd(''))
-      .finally(() => setAgentMdLoading(false));
+      .then((data) => {
+        if (agentMdEpoch.current !== epoch) return;
+        setAgentMd(data.content || '');
+      })
+      .catch(() => {
+        if (agentMdEpoch.current !== epoch) return;
+        setAgentMd('');
+      })
+      .finally(() => {
+        if (agentMdEpoch.current !== epoch) return;
+        setAgentMdLoading(false);
+      });
   }, [selected?.id]);
 
   const saveAgentMd = async () => {
@@ -137,21 +148,19 @@ function Agents() {
                 )}
                 {agent.agent_status === 'running' ? (
                   <button
-                    data-agent-stop
+                    className="icon-action icon-action--stop"
                     title="Остановить агента"
                     aria-label="Остановить агента"
                     onClick={(e) => { e.stopPropagation(); toggleAgent(agent, 'stop'); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', lineHeight: 1 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
                   </button>
                 ) : (
                   <button
-                    data-agent-start
+                    className="icon-action icon-action--start"
                     title="Запустить агента"
                     aria-label="Запустить агента"
                     onClick={(e) => { e.stopPropagation(); toggleAgent(agent, 'start'); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', lineHeight: 1 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="7,5 19,12 7,19" /></svg>
                   </button>
@@ -188,7 +197,7 @@ function Agents() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
               <div>
                 <span style={{ color: 'var(--text-tertiary)' }}>ID: </span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{selected.id}</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{selected.id}</span>
               </div>
               {selected.description && (
                 <div>

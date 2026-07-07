@@ -57,18 +57,24 @@ function IntelCard({ src }: { src: IntelSource }) {
 
 export function IntelContent() {
   const [sources, setSources] = useState<IntelSource[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchData = useCallback(() => {
     fetch('/api/intel')
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('load failed'))))
-      .then((d: { sources: IntelSource[] }) => setSources(d.sources || []))
-      .catch(() => setSources([]));
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((d: { sources: IntelSource[] }) => { setSources(d.sources || []); setLoadError(null); })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
   }, []);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div>
-      {sources === null && <Skeleton lines={3} />}
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 12 }}>
+          Не удалось загрузить сводки: {loadError}
+        </Card>
+      )}
+      {sources === null && !loadError && <Skeleton lines={3} />}
       {sources !== null && sources.length === 0 && (
         <EmptyState
           title="Нет источников или снимков"

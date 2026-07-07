@@ -59,7 +59,7 @@ agent-runner/src/                # TypeScript: NATS bridge + Claude Code SDK + M
 ui/                              # React/Vite SPA (dark theme, indigo accent)
   src/pages/                     # Dashboard, Agents, Conversations, Tasks, Secrets, Swarms
   src/components/Login.tsx       # Session-based login form
-  src/components/SwarmGraph.tsx   # SVG-based visual graph editor for swarm topology
+  src/components/SwarmGraph.tsx  # SVG graph editor: pointer-events (touch+mouse), connect mode, pan/zoom
   src/hooks/useWebSocket.ts      # Real-time WebSocket event hook
 config/praktor.example.yaml      # Example configuration
 ```
@@ -263,7 +263,7 @@ The lead agent always runs last and receives all prior results for synthesis.
 - `internal/swarm/graph.go` — `BuildPlan()`: topological sort, collab group detection (union-find), cycle detection, tier assignment
 - `internal/swarm/graph_test.go` — Unit tests for all graph topologies
 - `internal/swarm/coordinator.go` — Tier-based DAG execution, secret resolution, event publishing, swarm membership tracking
-- `ui/src/components/SwarmGraph.tsx` — SVG visual graph editor (drag nodes, draw edges, toggle direction, edit mode with initialData)
+- `ui/src/components/SwarmGraph.tsx` — SVG visual graph editor (pointer-events: drag nodes by mouse/finger, explicit connect mode, pan/pinch/wheel zoom, edit mode with initialData)
 - `ui/src/pages/Swarms.tsx` — Create/list views with edit, delete, and replay buttons per swarm
 
 **Execution flow:**

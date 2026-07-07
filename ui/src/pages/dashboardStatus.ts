@@ -135,7 +135,8 @@ function eventToFeedItem(e: WsEvent, agentNames: Record<string, string>): FeedIt
   switch (e.type) {
     case 'message': {
       if (data.role !== 'assistant') return null;
-      const time = typeof data.time === 'string' && data.time ? data.time : fmtTime(e.timestamp);
+      // Локальное время из ISO-метки события; серверный HH:MM — только запасной вариант
+      const time = fmtTime(e.timestamp) || (typeof data.time === 'string' ? data.time : '');
       return { key: `msg-${String(data.id)}`, time, icon: '💬', text: `${agent} ответил` };
     }
     case 'agent_started':
@@ -188,7 +189,13 @@ export function buildFeed(
     if (m.role !== 'assistant') continue;
     entries.push({
       sort: m.created_at ?? '',
-      item: { key: `msg-${m.id}`, time: m.time, icon: '💬', text: `${m.agent} ответил` },
+      item: {
+        key: `msg-${m.id}`,
+        // Локальное время из created_at; старые записи без created_at показывают серверный HH:MM
+        time: m.created_at ? fmtTime(m.created_at) : m.time,
+        icon: '💬',
+        text: `${m.agent} ответил`,
+      },
     });
   }
   for (const e of events) {

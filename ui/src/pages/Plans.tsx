@@ -114,6 +114,7 @@ export function PlansContent() {
         confirmLabel={confirm?.action === 'approve' ? 'Одобрить' : 'Отклонить'}
         danger={confirm?.action === 'reject'}
         busy={busy}
+        confirmDisabled={confirm?.action === 'reject' && !reason.trim()}
         onConfirm={doAction}
         onCancel={() => { setConfirm(null); setReason(''); }}
       />

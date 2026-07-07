@@ -14,3 +14,9 @@
 .ui-input:focus { outline: none; border-color: var(--accent); }
 .ui-input--area { resize: vertical; min-height: 90px; }
 .ui-input:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Тач: ≥44px. Правило здесь, а не в base.css — base.css грузится раньше,
+   и при равной специфичности базовый min-height:38px выше перебил бы override. */
+@media (pointer: coarse) {
+  .ui-input { min-height: 44px; }
+}

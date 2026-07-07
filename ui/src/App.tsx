@@ -122,7 +122,7 @@ function App() {
           cursor: 'pointer',
           boxShadow: 'var(--shadow)',
         }}
-        aria-label="Open menu"
+        aria-label="Открыть меню"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
           <line x1="3" y1="5" x2="17" y2="5" />
@@ -215,18 +215,7 @@ function App() {
                   to={to}
                   end={to === '/'}
                   onClick={closeSidebar}
-                  style={({ isActive }) => ({
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '8px 12px',
-                    borderRadius: 7,
-                    textDecoration: 'none',
-                    fontSize: 16,
-                    fontWeight: isActive ? 600 : 500,
-                    color: isActive ? '#fff' : 'var(--text-secondary)',
-                    background: isActive ? 'var(--accent)' : 'transparent',
-                  })}
+                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
                 >
                   <Icon />
                   {label}
@@ -243,60 +232,18 @@ function App() {
             href="https://github.com/mtzanidakis/praktor"
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '8px 12px',
-              borderRadius: 7,
-              textDecoration: 'none',
-              color: 'var(--text-secondary)',
-              fontSize: 16,
-              fontWeight: 500,
-            }}
+            className="nav-item"
           >
             <IconGitHub />
             GitHub
           </a>
-          <button
-            onClick={toggleTheme}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 7,
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              fontSize: 16,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
+          <button onClick={toggleTheme} className="nav-item">
             {theme === 'dark' ? <IconSun /> : <IconMoon />}
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            {theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
           </button>
-          <button
-            onClick={handleLogout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 7,
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              fontSize: 16,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
+          <button onClick={handleLogout} className="nav-item">
             <IconLogout />
-            Sign out
+            Выйти
           </button>
         </div>
       </aside>

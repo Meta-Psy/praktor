@@ -19,24 +19,64 @@ body, aside, main, div, span, h1, h2, h3, h4, p, a, button, input, textarea, sel
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Hover-эффекты (легаси-атрибуты страниц; уйдут в этапе 3) */
-button, a, [data-hover] {
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+/* Каркас: сайдбар (NavLink и кнопки футера используют один класс) */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
 }
-button:hover:not(:disabled):not(.ui-btn):not(.ui-tab) {
-  filter: brightness(1.15);
-  border-color: var(--text-muted) !important;
+.nav-item.active { background: var(--accent); color: #fff; font-weight: 600; }
+.nav-item:not(.active):hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.hamburger:hover { background: var(--bg-card-hover); }
+
+/* Список агентов в «Связи» */
+.agent-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 1px;
 }
-nav a:not(.active):hover {
-  background: var(--bg-card-hover) !important;
-  color: var(--text-primary) !important;
+.agent-select--active { background: var(--accent); color: #fff; font-weight: 600; }
+.agent-select:not(.agent-select--active):hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+/* Иконки-действия (запуск/остановка агента) */
+.icon-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-muted);
+  line-height: 1;
+  border-radius: var(--radius-sm);
 }
-[data-hover]:hover {
-  background: var(--bg-card-hover) !important;
-  border-color: var(--text-muted) !important;
-}
-[data-agent-start]:hover { color: var(--green) !important; filter: none !important; border-color: transparent !important; }
-[data-agent-stop]:hover { color: var(--red) !important; filter: none !important; border-color: transparent !important; }
+.icon-action--start:hover { color: var(--green); }
+.icon-action--stop:hover { color: var(--red); }
+
+/* «Связь»: мобильный выбор агента — на десктопе скрыт */
+.conversations-agent-picker { display: none; }
 
 /* Мобильная база */
 @media (max-width: 768px) {
@@ -46,9 +86,32 @@ nav a:not(.active):hover {
   .hamburger { display: flex !important; }
   .sidebar-backdrop { display: block !important; }
   .dashboard-grid { grid-template-columns: 1fr !important; }
-  .conversations-layout { flex-direction: column; height: auto !important; min-height: 0 !important; }
-  .conversations-agents { width: 100% !important; max-height: 150px; }
+  /* «Связь» как мессенджер: список агентов скрыт (выбор — Select в шапке),
+     высота — динамический вьюпорт (учитывает клавиатуру), композер прижат к низу */
+  .conversations-layout {
+    height: calc(100vh - 150px) !important;
+    height: calc(100dvh - 150px) !important;
+  }
+  .conversations-agents { display: none !important; }
+  .conversations-agent-picker { display: block; flex: 1; min-width: 0; }
+  .conversations-agent-name { display: none; }
+  .conversations-search { flex: 1 1 100%; }
+  .conversations-search .ui-input { flex: 1 1 auto; width: auto !important; }
+  .conversations-composer { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
   .form-grid-2col { grid-template-columns: 1fr !important; }
+}
+
+/* Тач: зоны нажатия ≥44px на устройствах с грубым указателем (палец).
+   На десктопе (pointer: fine) размеры не меняются.
+   Правило для .ui-input живёт в Field.css: base.css грузится раньше компонентных
+   стилей, и базовый min-height оттуда перебил бы override при равной специфичности. */
+@media (pointer: coarse) {
+  .ui-btn { min-height: 44px; }
+  .ui-tab { min-height: 44px; }
+  .nav-item { min-height: 44px; }
+  .agent-select { min-height: 44px; }
+  .icon-action { padding: 14px; } /* 14+16+14 = 44px с иконкой 16px */
+  .swarm-editor__agent { min-height: 44px; }
 }
 
 /* Общие keyframes библиотеки ui-компонентов (используют Button и Loading) */

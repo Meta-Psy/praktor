@@ -1,4 +1,5 @@
-import { useState, FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
+import { Button, Card, Field, Input } from './ui';
 
 interface LoginProps {
   onLogin: () => void;
@@ -24,11 +25,11 @@ export default function Login({ onLogin }: LoginProps) {
       if (res.ok) {
         onLogin();
       } else {
-        setError('Invalid password');
+        setError('Неверный пароль');
         setPassword('');
       }
     } catch {
-      setError('Connection failed');
+      setError('Нет связи с сервером');
     } finally {
       setLoading(false);
     }
@@ -40,80 +41,51 @@ export default function Login({ onLogin }: LoginProps) {
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100vh',
-      background: 'var(--bg-primary)',
+      background: 'var(--bg-body)',
+      padding: 16,
     }}>
-      <form onSubmit={handleSubmit} style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-        width: 320,
-        padding: 32,
-        background: 'var(--bg-secondary)',
-        borderRadius: 12,
-        border: '1px solid var(--border)',
-      }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            background: 'var(--accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <svg width="18" height="18" viewBox="0 0 128 128">
-              <polygon fill="#fff" points="0,8 124,4 128,28 4,32"/>
-              <polygon fill="#fff" points="14,40 42,38 28,122 0,124"/>
-              <polygon fill="#fff" points="72,36 100,34 86,118 58,120"/>
-            </svg>
+      <Card style={{ width: 320, padding: 32 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'var(--accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <svg width="18" height="18" viewBox="0 0 128 128">
+                <polygon fill="#fff" points="0,8 124,4 128,28 4,32"/>
+                <polygon fill="#fff" points="14,40 42,38 28,122 0,124"/>
+                <polygon fill="#fff" points="72,36 100,34 86,118 58,120"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Штаб
+            </div>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Штаб
-          </div>
-        </div>
 
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
-          autoFocus
-          style={{
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: 'var(--bg-primary)',
-            color: 'var(--text-primary)',
-            fontSize: 14,
-            outline: 'none',
-          }}
-        />
+          <Field label="Пароль">
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+            />
+          </Field>
 
-        {error && (
-          <div style={{ color: '#ef4444', fontSize: 13 }}>{error}</div>
-        )}
+          {error && (
+            <div style={{ color: 'var(--red)', fontSize: 13 }}>{error}</div>
+          )}
 
-        <button
-          type="submit"
-          disabled={loading || !password}
-          style={{
-            padding: '10px 12px',
-            borderRadius: 8,
-            border: 'none',
-            background: 'var(--accent)',
-            color: '#fff',
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: loading || !password ? 'not-allowed' : 'pointer',
-            opacity: loading || !password ? 0.6 : 1,
-          }}
-        >
-          {loading ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
+          <Button type="submit" busy={loading} disabled={!password}>
+            Войти
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }

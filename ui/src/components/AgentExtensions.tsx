@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Badge, Button, Card, Input, Skeleton, Tabs, Textarea, useToast } from './ui';
+import { useState, useEffect, useRef } from 'react';
+import { Badge, Button, Card, Input, Skeleton, Tabs, TabPanel, Textarea, useToast } from './ui';
 
 interface MCPServerConfig {
   type: 'stdio' | 'http';
@@ -156,12 +156,12 @@ function MCPServersTab({
             </div>
           </div>
           {srv.type === 'stdio' && editing !== name && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', ...mono }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all', ...mono }}>
               {srv.command} {(srv.args || []).join(' ')}
             </div>
           )}
           {srv.type === 'http' && editing !== name && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', ...mono }}>{srv.url}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all', ...mono }}>{srv.url}</div>
           )}
           {editing === name && (
             <div style={{ marginTop: 8 }}>
@@ -536,15 +536,22 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+  const loadEpoch = useRef(0);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    const epoch = ++loadEpoch.current;
     fetch(`/api/agents/definitions/${agentId}/extensions`)
       .then((res) => res.json())
-      .then((data) => setExt(data))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((data) => { if (loadEpoch.current === epoch) setExt(data); })
+      .catch((err) => {
+        if (loadEpoch.current === epoch) {
+          setExt({});
+          setError(err.message);
+        }
+      })
+      .finally(() => { if (loadEpoch.current === epoch) setLoading(false); });
   }, [agentId]);
 
   const save = () => {
@@ -585,7 +592,7 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
             MCP-серверы, плагины и навыки
           </p>
         </div>
-        <Button onClick={save} busy={saving}>Сохранить</Button>
+        <Button onClick={save} busy={saving} disabled={error !== null}>Сохранить</Button>
       </div>
 
       {error && (
@@ -614,13 +621,13 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
         onChange={setTab}
       />
 
-      {tab === 'mcp' && (
+      <TabPanel id="mcp" active={tab === 'mcp'}>
         <MCPServersTab
           servers={ext.mcp_servers || {}}
           onChange={(servers) => setExt({ ...ext, mcp_servers: servers })}
         />
-      )}
-      {tab === 'plugins' && (
+      </TabPanel>
+      <TabPanel id="plugins" active={tab === 'plugins'}>
         <PluginsTab
           marketplaces={ext.marketplaces || []}
           plugins={ext.plugins || []}
@@ -628,10 +635,10 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
           onChangeMarketplaces={(marketplaces) => setExt({ ...ext, marketplaces })}
           onChangePlugins={(plugins) => setExt({ ...ext, plugins })}
         />
-      )}
-      {tab === 'skills' && (
+      </TabPanel>
+      <TabPanel id="skills" active={tab === 'skills'}>
         <SkillsTab skills={ext.skills || {}} onChange={(skills) => setExt({ ...ext, skills })} />
-      )}
+      </TabPanel>
     </Card>
   );
 }

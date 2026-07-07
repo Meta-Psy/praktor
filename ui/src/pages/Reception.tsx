@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { PageHeader, Tabs } from '../components/ui';
+import { PageHeader, Tabs, TabPanel } from '../components/ui';
 import { IntakeContent } from './Intake';
 import { PlansContent } from './Plans';
 
@@ -20,7 +20,8 @@ function Reception() {
         active={tab}
         onChange={(id) => setParams(id === 'inbox' ? {} : { tab: id }, { replace: true })}
       />
-      {tab === 'inbox' ? <IntakeContent /> : <PlansContent />}
+      <TabPanel id="inbox" active={tab === 'inbox'}><IntakeContent /></TabPanel>
+      <TabPanel id="plans" active={tab === 'plans'}><PlansContent /></TabPanel>
     </div>
   );
 }
