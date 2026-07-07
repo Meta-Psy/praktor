@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { WsEvent } from '../contexts/WebSocketContext';
 import {
-  Badge, Button, Card, EmptyState, Input, PageHeader, Skeleton, Spinner, Textarea, useToast,
+  Badge, Button, Card, EmptyState, Input, PageHeader, Select, Skeleton, Spinner, Textarea, useToast,
 } from '../components/ui';
 
 interface Agent {
@@ -281,8 +281,19 @@ function Conversations() {
             gap: 12,
             flexWrap: 'wrap',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontWeight: 600, fontSize: 17, color: 'var(--text-primary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 auto' }}>
+              <div className="conversations-agent-picker">
+                <Select
+                  value={selectedAgentId ?? ''}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  aria-label="Агент"
+                >
+                  {(agents ?? []).map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <span className="conversations-agent-name" style={{ fontWeight: 600, fontSize: 17, color: 'var(--text-primary)' }}>
                 {selectedAgent?.name ?? 'Выберите агента'}
               </span>
               {selectedAgent && (
@@ -294,6 +305,7 @@ function Conversations() {
             {selectedAgentId && (
               <form
                 onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
+                className="conversations-search"
                 style={{ display: 'flex', gap: 6, alignItems: 'center' }}
               >
                 <Input
@@ -386,6 +398,7 @@ function Conversations() {
           {selectedAgentId && (
             <form
               onSubmit={(e) => { e.preventDefault(); send(); }}
+              className="conversations-composer"
               style={{ display: 'flex', gap: 8, alignItems: 'flex-end', padding: 12, borderTop: '1px solid var(--border)' }}
             >
               <Textarea

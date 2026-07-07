@@ -75,6 +75,9 @@ body, aside, main, div, span, h1, h2, h3, h4, p, a, button, input, textarea, sel
 .icon-action--start:hover { color: var(--green); }
 .icon-action--stop:hover { color: var(--red); }
 
+/* «Связь»: мобильный выбор агента — на десктопе скрыт */
+.conversations-agent-picker { display: none; }
+
 /* Мобильная база */
 @media (max-width: 768px) {
   .sidebar { transform: translateX(-100%); transition: transform 0.25s ease; }
@@ -83,8 +86,18 @@ body, aside, main, div, span, h1, h2, h3, h4, p, a, button, input, textarea, sel
   .hamburger { display: flex !important; }
   .sidebar-backdrop { display: block !important; }
   .dashboard-grid { grid-template-columns: 1fr !important; }
-  .conversations-layout { flex-direction: column; height: auto !important; min-height: 0 !important; }
-  .conversations-agents { width: 100% !important; max-height: 150px; }
+  /* «Связь» как мессенджер: список агентов скрыт (выбор — Select в шапке),
+     высота — динамический вьюпорт (учитывает клавиатуру), композер прижат к низу */
+  .conversations-layout {
+    height: calc(100vh - 150px) !important;
+    height: calc(100dvh - 150px) !important;
+  }
+  .conversations-agents { display: none !important; }
+  .conversations-agent-picker { display: block; flex: 1; min-width: 0; }
+  .conversations-agent-name { display: none; }
+  .conversations-search { flex: 1 1 100%; }
+  .conversations-search .ui-input { flex: 1 1 auto; width: auto !important; }
+  .conversations-composer { padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
   .form-grid-2col { grid-template-columns: 1fr !important; }
 }
 
