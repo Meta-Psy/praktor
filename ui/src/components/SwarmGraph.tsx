@@ -60,6 +60,7 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
   // Перетаскивание узла (pointer: мышь и палец едино)
   const [dragging, setDragging] = useState<string | null>(null);
   const dragOffset = useRef<Point>({ x: 0, y: 0 });
+  const dragPointer = useRef<number | null>(null);
 
   // Режим «Связать»: тап по первому узлу, затем по второму
   const [connectMode, setConnectMode] = useState(false);
@@ -131,7 +132,7 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
   /* ── Жесты холста: пан одним указателем, пинч двумя, зум колесом ── */
   const onCanvasPointerDown = useCallback((e: React.PointerEvent) => {
     pointers.current.set(e.pointerId, getScreenPoint(e));
-    movedRef.current = false;
+    if (pointers.current.size === 1) movedRef.current = false;
     svgRef.current?.setPointerCapture(e.pointerId);
   }, [getScreenPoint]);
 
@@ -139,6 +140,7 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
     const cur = getScreenPoint(e);
 
     if (dragging) {
+      if (e.pointerId !== dragPointer.current) return;
       const gp = toGraphPoint(view, cur);
       setNodes((prev) =>
         prev.map((n) =>
@@ -170,7 +172,10 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     pointers.current.delete(e.pointerId);
-    setDragging(null);
+    if (e.pointerId === dragPointer.current) {
+      dragPointer.current = null;
+      setDragging(null);
+    }
   }, []);
 
   // Колесо: React вешает wheel пассивно — preventDefault работает только у нативного listener
@@ -188,16 +193,18 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
 
   /* ── Узлы: перетаскивание и тап ── */
   const onNodePointerDown = useCallback((e: React.PointerEvent, nodeId: string) => {
-    if (connectMode) return; // в режиме связывания узлы не таскаем
     e.stopPropagation();
+    movedRef.current = false;
+    if (connectMode) return; // тап обрабатывает onClick; пан с узла не начинаем
+    if (dragging) return;    // уже тащим узел — второй палец игнорируем
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
     const gp = toGraphPoint(view, getScreenPoint(e));
     dragOffset.current = { x: gp.x - node.x, y: gp.y - node.y };
+    dragPointer.current = e.pointerId;
     setDragging(nodeId);
-    movedRef.current = false;
     svgRef.current?.setPointerCapture(e.pointerId);
-  }, [connectMode, nodes, view, getScreenPoint]);
+  }, [connectMode, dragging, nodes, view, getScreenPoint]);
 
   const onNodeTap = useCallback((nodeId: string) => {
     if (connectMode) {
@@ -228,7 +235,7 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
     setNodes((prev) => {
       const remaining = prev.filter((n) => n.id !== nodeId);
       if (remaining.length > 0 && !remaining.some((n) => n.isLead)) {
-        remaining[0].isLead = true;
+        return remaining.map((n, i) => (i === 0 ? { ...n, isLead: true } : n));
       }
       return remaining;
     });
@@ -380,7 +387,7 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
                     x1={fx} y1={fy} x2={tx} y2={ty}
                     stroke="transparent" strokeWidth={24}
                     style={{ cursor: 'pointer' }}
-                    onClick={(e) => { e.stopPropagation(); setSelectedEdge(i); setSelectedNode(null); }}
+                    onClick={(e) => { e.stopPropagation(); if (movedRef.current) return; setSelectedEdge(i); setSelectedNode(null); }}
                   />
                   <line
                     x1={fx} y1={fy} x2={tx} y2={ty}
@@ -425,7 +432,11 @@ export default function SwarmGraph({ onLaunch, initialData, launchLabel }: Props
                     strokeDasharray={isConnectSource ? '6,4' : undefined}
                     style={{ cursor: connectMode ? 'pointer' : 'grab' }}
                     onPointerDown={(e) => onNodePointerDown(e, node.id)}
-                    onClick={(e) => { e.stopPropagation(); if (!movedRef.current) onNodeTap(node.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (connectMode && movedRef.current) return; // связывание — только чистым тапом
+                      onNodeTap(node.id);
+                    }}
                   />
                   <text
                     x={node.x + NODE_W / 2} y={node.y + 26}
