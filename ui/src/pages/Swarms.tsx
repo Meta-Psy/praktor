@@ -291,6 +291,7 @@ function Swarms() {
                                   wordBreak: 'break-word',
                                   maxHeight: 200,
                                   overflowY: 'auto',
+                                  overflowX: 'auto',
                                   margin: 0,
                                 }}>
                                   {r.output}

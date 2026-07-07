@@ -197,7 +197,7 @@ function Agents() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
               <div>
                 <span style={{ color: 'var(--text-tertiary)' }}>ID: </span>
-                <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{selected.id}</span>
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{selected.id}</span>
               </div>
               {selected.description && (
                 <div>

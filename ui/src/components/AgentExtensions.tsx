@@ -156,12 +156,12 @@ function MCPServersTab({
             </div>
           </div>
           {srv.type === 'stdio' && editing !== name && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', ...mono }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all', ...mono }}>
               {srv.command} {(srv.args || []).join(' ')}
             </div>
           )}
           {srv.type === 'http' && editing !== name && (
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', ...mono }}>{srv.url}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', wordBreak: 'break-all', ...mono }}>{srv.url}</div>
           )}
           {editing === name && (
             <div style={{ marginTop: 8 }}>
