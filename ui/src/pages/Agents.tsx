@@ -33,6 +33,7 @@ function Agents() {
   const toast = useToast();
   const { events } = useWebSocket();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const agentMdEpoch = useRef(0);
 
   const fetchAgents = useCallback(() => {
     fetch('/api/agents/definitions')
@@ -61,11 +62,21 @@ function Agents() {
   useEffect(() => {
     if (!selected) return;
     setAgentMdLoading(true);
+    const epoch = ++agentMdEpoch.current;
     fetch(`/api/agents/definitions/${selected.id}/agent-md`)
       .then((res) => res.json())
-      .then((data) => setAgentMd(data.content || ''))
-      .catch(() => setAgentMd(''))
-      .finally(() => setAgentMdLoading(false));
+      .then((data) => {
+        if (agentMdEpoch.current !== epoch) return;
+        setAgentMd(data.content || '');
+      })
+      .catch(() => {
+        if (agentMdEpoch.current !== epoch) return;
+        setAgentMd('');
+      })
+      .finally(() => {
+        if (agentMdEpoch.current !== epoch) return;
+        setAgentMdLoading(false);
+      });
   }, [selected?.id]);
 
   const saveAgentMd = async () => {

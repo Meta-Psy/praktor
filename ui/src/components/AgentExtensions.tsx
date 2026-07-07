@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Badge, Button, Card, Input, Skeleton, Tabs, TabPanel, Textarea, useToast } from './ui';
 
 interface MCPServerConfig {
@@ -536,15 +536,17 @@ export default function AgentExtensionsPanel({ agentId }: { agentId: string }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
+  const loadEpoch = useRef(0);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    const epoch = ++loadEpoch.current;
     fetch(`/api/agents/definitions/${agentId}/extensions`)
       .then((res) => res.json())
-      .then((data) => setExt(data))
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((data) => { if (loadEpoch.current === epoch) setExt(data); })
+      .catch((err) => { if (loadEpoch.current === epoch) setError(err.message); })
+      .finally(() => { if (loadEpoch.current === epoch) setLoading(false); });
   }, [agentId]);
 
   const save = () => {
