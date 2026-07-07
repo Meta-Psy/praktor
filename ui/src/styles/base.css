@@ -89,14 +89,15 @@ body, aside, main, div, span, h1, h2, h3, h4, p, a, button, input, textarea, sel
 }
 
 /* Тач: зоны нажатия ≥44px на устройствах с грубым указателем (палец).
-   На десктопе (pointer: fine) размеры не меняются. */
+   На десктопе (pointer: fine) размеры не меняются.
+   Правило для .ui-input живёт в Field.css: base.css грузится раньше компонентных
+   стилей, и базовый min-height оттуда перебил бы override при равной специфичности. */
 @media (pointer: coarse) {
   .ui-btn { min-height: 44px; }
   .ui-tab { min-height: 44px; }
-  .ui-input { min-height: 44px; }
   .nav-item { min-height: 44px; }
   .agent-select { min-height: 44px; }
-  .icon-action { padding: 12px; }
+  .icon-action { padding: 14px; } /* 14+16+14 = 44px с иконкой 16px */
   .swarm-editor__agent { min-height: 44px; }
 }
 
