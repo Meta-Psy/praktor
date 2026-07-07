@@ -341,6 +341,7 @@ function Dashboard() {
         confirmLabel={confirmLabel}
         danger={pending?.kind === 'plan-reject'}
         busy={busy}
+        confirmDisabled={pending?.kind === 'plan-reject' && !reason.trim()}
         onConfirm={confirmAction}
         onCancel={() => { setPending(null); setReason(''); }}
       />
