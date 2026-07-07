@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import './Tabs.css';
 
@@ -48,9 +48,14 @@ export function Tabs({ tabs, active, onChange }: TabsProps) {
   );
 }
 
-// Панель вкладки: скрывается hidden-атрибутом, НЕ размонтируется —
-// несохранённый ввод переживает переключение вкладок
+// Панель вкладки: монтируется при первой активации и дальше не размонтируется —
+// несохранённый ввод переживает переключение, а скрытые вкладки не грузят данные зря
 export function TabPanel({ id, active, children }: { id: string; active: boolean; children: ReactNode }) {
+  const [everActive, setEverActive] = useState(active);
+  useEffect(() => {
+    if (active) setEverActive(true);
+  }, [active]);
+  if (!everActive) return null;
   return (
     <div
       id={`ui-tabpanel-${id}`}

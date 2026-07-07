@@ -50,8 +50,15 @@ test('вкладка связана с панелью aria-controls/aria-labelle
   expect(panel.getAttribute('aria-labelledby')).toBe(tab.id);
 });
 
-test('неактивная панель скрыта, но остаётся смонтированной (ввод не теряется)', () => {
+test('панель не монтируется до первой активации', () => {
   render(<TabPanel id="plans" active={false}><input placeholder="черновик" /></TabPanel>);
+  expect(screen.queryByPlaceholderText('черновик')).toBeNull();
+});
+
+test('после первой активации панель скрывается, но не размонтируется (ввод не теряется)', () => {
+  const { rerender } = render(<TabPanel id="plans" active><input placeholder="черновик" /></TabPanel>);
+  expect(screen.getByPlaceholderText('черновик')).toBeInTheDocument();
+  rerender(<TabPanel id="plans" active={false}><input placeholder="черновик" /></TabPanel>);
   expect(screen.getByPlaceholderText('черновик')).toBeInTheDocument();
   expect(screen.queryByRole('tabpanel')).toBeNull(); // hidden убирает из a11y-дерева
 });
