@@ -103,15 +103,17 @@ function Swarms() {
     fetchSwarms();
   }, [fetchSwarms]);
 
-  // React to WebSocket swarm events (с дебаунсом — поток swarm_* не должен бить по API каждым событием)
+  // React to WebSocket swarm events (с дебаунсом — поток swarm_* не должен бить по API каждым событием).
+  // Cleanup только на размонтирование: per-run cleanup стирал бы ожидающий таймер,
+  // когда следующее событие в потоке не swarm_* — и рефетч терялся бы насовсем.
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     const latest = events[events.length - 1];
     if (!latest || !latest.type.startsWith('swarm_')) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(fetchSwarms, 500);
-    return () => clearTimeout(debounceRef.current);
   }, [events, fetchSwarms]);
+  useEffect(() => () => clearTimeout(debounceRef.current), []);
 
   const launchSwarm = async (data: SwarmLaunchData) => {
     try {
