@@ -88,5 +88,17 @@ body, aside, main, div, span, h1, h2, h3, h4, p, a, button, input, textarea, sel
   .form-grid-2col { grid-template-columns: 1fr !important; }
 }
 
+/* Тач: зоны нажатия ≥44px на устройствах с грубым указателем (палец).
+   На десктопе (pointer: fine) размеры не меняются. */
+@media (pointer: coarse) {
+  .ui-btn { min-height: 44px; }
+  .ui-tab { min-height: 44px; }
+  .ui-input { min-height: 44px; }
+  .nav-item { min-height: 44px; }
+  .agent-select { min-height: 44px; }
+  .icon-action { padding: 12px; }
+  .swarm-editor__agent { min-height: 44px; }
+}
+
 /* Общие keyframes библиотеки ui-компонентов (используют Button и Loading) */
 @keyframes ui-spin { to { transform: rotate(360deg); } }
