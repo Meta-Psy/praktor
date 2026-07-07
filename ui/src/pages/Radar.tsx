@@ -26,18 +26,24 @@ function RadarRow({ it }: { it: RadarItem }) {
 
 export function RadarContent() {
   const [items, setItems] = useState<RadarItem[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchData = useCallback(() => {
     fetch('/api/radar')
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('load failed'))))
-      .then((d: RadarResponse) => setItems(d.items || []))
-      .catch(() => setItems([]));
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((d: RadarResponse) => { setItems(d.items || []); setLoadError(null); })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
   }, []);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div>
-      {items === null && <Skeleton lines={3} />}
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 12 }}>
+          Не удалось загрузить радар: {loadError}
+        </Card>
+      )}
+      {items === null && !loadError && <Skeleton lines={3} />}
       {items !== null && items.length === 0 && (
         <EmptyState
           title="Радар пуст или выключен"

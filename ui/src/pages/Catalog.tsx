@@ -62,22 +62,28 @@ function AgentCard({ a }: { a: AgentCapabilities }) {
 
 function Catalog() {
   const [data, setData] = useState<CatalogResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchData = useCallback(() => {
     fetch('/api/agents/capabilities')
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('load failed'))))
-      .then((d: CatalogResponse) => setData(d))
-      .catch(() => setData({ user_profile_present: false, agents: [] }));
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((d: CatalogResponse) => { setData(d); setLoadError(null); })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : String(err)));
   }, []);
   useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
       <PageHeader title="Арсенал" subtitle="Каталог возможностей агентов: инструменты, память, расширения" />
+      {loadError && (
+        <Card style={{ color: 'var(--red)', marginBottom: 12 }}>
+          Не удалось загрузить каталог: {loadError}
+        </Card>
+      )}
       <Card style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>
         Профиль пользователя: {data?.user_profile_present ? 'задан' : 'не задан'}
       </Card>
-      {data === null && <Skeleton lines={3} />}
+      {data === null && !loadError && <Skeleton lines={3} />}
       {data !== null && data.agents.length === 0 && (
         <EmptyState
           title="Нет агентов"
