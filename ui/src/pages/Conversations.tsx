@@ -245,22 +245,7 @@ function Conversations() {
                 key={agent.id}
                 onClick={() => setSelectedAgentId(agent.id)}
                 aria-pressed={selected}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 7,
-                  border: 'none',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  fontSize: 15,
-                  fontWeight: selected ? 600 : 400,
-                  background: selected ? 'var(--accent)' : 'transparent',
-                  color: selected ? '#fff' : 'var(--text-secondary)',
-                  marginBottom: 1,
-                }}
+                className={`agent-select${selected ? ' agent-select--active' : ''}`}
               >
                 <span
                   title={online ? 'Контейнер запущен' : 'Контейнер остановлен'}

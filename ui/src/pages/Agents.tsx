@@ -148,21 +148,19 @@ function Agents() {
                 )}
                 {agent.agent_status === 'running' ? (
                   <button
-                    data-agent-stop
+                    className="icon-action icon-action--stop"
                     title="Остановить агента"
                     aria-label="Остановить агента"
                     onClick={(e) => { e.stopPropagation(); toggleAgent(agent, 'stop'); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', lineHeight: 1 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
                   </button>
                 ) : (
                   <button
-                    data-agent-start
+                    className="icon-action icon-action--start"
                     title="Запустить агента"
                     aria-label="Запустить агента"
                     onClick={(e) => { e.stopPropagation(); toggleAgent(agent, 'start'); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text-muted)', lineHeight: 1 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="7,5 19,12 7,19" /></svg>
                   </button>

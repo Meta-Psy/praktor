@@ -19,24 +19,61 @@ body, aside, main, div, span, h1, h2, h3, h4, p, a, button, input, textarea, sel
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Hover-эффекты (легаси-атрибуты страниц; уйдут в этапе 3) */
-button, a, [data-hover] {
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+/* Каркас: сайдбар (NavLink и кнопки футера используют один класс) */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
 }
-button:hover:not(:disabled):not(.ui-btn):not(.ui-tab) {
-  filter: brightness(1.15);
-  border-color: var(--text-muted) !important;
+.nav-item.active { background: var(--accent); color: #fff; font-weight: 600; }
+.nav-item:not(.active):hover { background: var(--bg-card-hover); color: var(--text-primary); }
+.hamburger:hover { background: var(--bg-card-hover); }
+
+/* Список агентов в «Связи» */
+.agent-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 1px;
 }
-nav a:not(.active):hover {
-  background: var(--bg-card-hover) !important;
-  color: var(--text-primary) !important;
+.agent-select--active { background: var(--accent); color: #fff; font-weight: 600; }
+.agent-select:not(.agent-select--active):hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+/* Иконки-действия (запуск/остановка агента) */
+.icon-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--text-muted);
+  line-height: 1;
+  border-radius: var(--radius-sm);
 }
-[data-hover]:hover {
-  background: var(--bg-card-hover) !important;
-  border-color: var(--text-muted) !important;
-}
-[data-agent-start]:hover { color: var(--green) !important; filter: none !important; border-color: transparent !important; }
-[data-agent-stop]:hover { color: var(--red) !important; filter: none !important; border-color: transparent !important; }
+.icon-action--start:hover { color: var(--green); }
+.icon-action--stop:hover { color: var(--red); }
 
 /* Мобильная база */
 @media (max-width: 768px) {

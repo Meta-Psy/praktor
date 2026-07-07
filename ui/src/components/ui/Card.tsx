@@ -10,7 +10,7 @@ export function Card({ interactive = false, className, children, ...rest }: Card
     .filter(Boolean)
     .join(' ');
   return (
-    <div className={cls} {...(interactive ? { 'data-hover': true } : {})} {...rest}>
+    <div className={cls} {...rest}>
       {children}
     </div>
   );
