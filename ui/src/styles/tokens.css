@@ -58,16 +58,6 @@
   color-scheme: light;
 }
 
-/* Алиасы: код местами ссылается на эти имена (Login, Projects, Agents).
-   Указывают на канонические токены — не использовать в новом коде. */
-:root {
-  --danger: var(--red);
-  --danger-muted: var(--red-muted);
-  --bg-primary: var(--bg-body);
-  --bg-secondary: var(--bg-card);
-  --bg-main: var(--bg-input);
-}
-
 /* Форма и типографика */
 :root {
   --radius-sm: 7px;
