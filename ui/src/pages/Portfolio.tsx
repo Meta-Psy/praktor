@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { percent, groupByLane, type Portfolio as PortfolioDoc, type PortfolioProject } from './portfolioStatus';
+import {
+  projectPercent, metricPercent, groupByLane, staleDays, isStale,
+  type Portfolio as PortfolioDoc, type PortfolioProject, type Metric,
+} from './portfolioStatus';
 import { ciLabel, deployLabel, type ProjectStatus } from './projectStatus';
 import { Card, EmptyState, PageHeader, Skeleton } from '../components/ui';
 
@@ -14,6 +17,40 @@ const LANE_LABEL: Record<'planned' | 'doing' | 'done', string> = {
   doing: 'в работе',
   done: 'готово',
 };
+
+function formatAsOf(asOf?: string): string {
+  if (!asOf) return '';
+  const t = Date.parse(asOf);
+  if (Number.isNaN(t)) return asOf;
+  return new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
+function MetricRow({ m }: { m: Metric }) {
+  const pct = metricPercent(m);
+  const stale = isStale(m.as_of);
+  const days = staleDays(m.as_of);
+  return (
+    <div style={{ padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13 }}>
+        <span style={{ flex: 1, minWidth: 0 }}>{m.label}</span>
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {m.done}/{m.total}{m.unit ? ` ${m.unit}` : ''}
+        </span>
+        <span style={{ minWidth: 32, textAlign: 'right', color: m.error ? 'var(--red)' : 'var(--text-secondary)' }}>
+          {m.error ? '—' : `${pct}%`}
+        </span>
+      </div>
+      <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, marginTop: 4 }}>
+        <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: m.error ? 'var(--red)' : 'var(--accent)', borderRadius: 2 }} />
+      </div>
+      {m.as_of && (
+        <div style={{ fontSize: 11, marginTop: 3, color: stale ? 'var(--amber)' : 'var(--text-secondary)' }}>
+          на {formatAsOf(m.as_of)}{stale && days !== null ? ` · ⚠ ${days}д` : ''}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Portfolio() {
   const [doc, setDoc] = useState<PortfolioDoc | null>(null);
@@ -63,7 +100,7 @@ function Portfolio() {
       )}
 
       {(doc?.projects ?? []).map((p: PortfolioProject) => {
-        const pct = percent(p.directions);
+        const pct = projectPercent(p);
         const lv = p.mc_key ? live[p.mc_key] : undefined;
         const isOpen = open === p.key;
         const lanes = groupByLane(p.directions);
@@ -87,7 +124,7 @@ function Portfolio() {
               <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
             </div>
             {p.next_action && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>дальше: {p.next_action}</div>}
-            {isOpen && (
+            {isOpen && p.directions.length > 0 && (
               <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
                 {(['planned', 'doing', 'done'] as const).map((k) => (
                   <div key={k} style={{ flex: 1, minWidth: 0 }}>
@@ -97,6 +134,18 @@ function Portfolio() {
                     {lanes[k].map((d, i) => (
                       <div key={i} style={{ fontSize: 13, padding: '4px 0', borderTop: '1px solid var(--border)' }}>{d.title}</div>
                     ))}
+                  </div>
+                ))}
+              </div>
+            )}
+            {isOpen && p.subprojects && p.subprojects.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                {p.subprojects.map((sp) => (
+                  <div key={sp.key} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: 2 }}>
+                      {sp.label}
+                    </div>
+                    {sp.metrics.map((m) => <MetricRow key={m.key} m={m} />)}
                   </div>
                 ))}
               </div>

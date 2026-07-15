@@ -14,14 +14,37 @@ type Direction struct {
 	State string `json:"state"` // planned|doing|done
 }
 
+// Metric is one granular counter (e.g. 33 of 2102 конспектов). Values are
+// resolved by the publisher; the source spec is never published, so it does not
+// appear here.
+type Metric struct {
+	Key    string  `json:"key"`
+	Label  string  `json:"label"`
+	Unit   string  `json:"unit,omitempty"`
+	Done   int     `json:"done"`
+	Total  int     `json:"total"`
+	AsOf   string  `json:"as_of,omitempty"` // ISO date the number is current as of
+	Weight float64 `json:"weight,omitempty"`
+	Error  bool    `json:"error,omitempty"` // true when the publisher could not resolve it
+}
+
+// Subproject groups metrics under a project (e.g. "Конспекты", "Видео").
+type Subproject struct {
+	Key     string   `json:"key"`
+	Label   string   `json:"label"`
+	Weight  float64  `json:"weight,omitempty"`
+	Metrics []Metric `json:"metrics"`
+}
+
 // PortfolioProject is one project's roadmap, as published to the data repo.
 type PortfolioProject struct {
-	Key        string      `json:"key"`
-	Name       string      `json:"name"`
-	Status     string      `json:"status"` // active|paused|done
-	NextAction string      `json:"next_action,omitempty"`
-	McKey      string      `json:"mc_key,omitempty"`
-	Directions []Direction `json:"directions"`
+	Key         string       `json:"key"`
+	Name        string       `json:"name"`
+	Status      string       `json:"status"` // active|paused|done
+	NextAction  string       `json:"next_action,omitempty"`
+	McKey       string       `json:"mc_key,omitempty"`
+	Directions  []Direction  `json:"directions"`
+	Subprojects []Subproject `json:"subprojects,omitempty"`
 }
 
 // Portfolio is the published document.
