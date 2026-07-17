@@ -19,6 +19,9 @@ type Thread struct {
 	EndedAt       string // "" = не завершена
 }
 
+// ErrNotFound помечает отсутствие строки; веб-слой мапит его в 404.
+var ErrNotFound = errors.New("not found")
+
 func nullStr(s string) any {
 	if s == "" {
 		return nil
@@ -229,7 +232,7 @@ func (s *Store) ConfirmPoint(id, threadID string) error {
 		return fmt.Errorf("confirm point: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("confirm point: point %s not found", id)
+		return fmt.Errorf("confirm point %s: %w", id, ErrNotFound)
 	}
 	return nil
 }
@@ -249,6 +252,9 @@ func (s *Store) MaterializePoint(prPointID, plannedPointID, threadID string) err
 	var prNumber sql.NullInt64
 	err = tx.QueryRow(`SELECT repo, pr_number, pr_url, pr_state, event_date FROM thread_points WHERE id = ?`,
 		prPointID).Scan(&repo, &prNumber, &prURL, &prState, &eventDate)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("materialize: pr point %s: %w", prPointID, ErrNotFound)
+	}
 	if err != nil {
 		return fmt.Errorf("materialize read pr: %w", err)
 	}
@@ -264,7 +270,7 @@ func (s *Store) MaterializePoint(prPointID, plannedPointID, threadID string) err
 		return fmt.Errorf("materialize update planned: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("materialize: planned point %s not found in thread %s", plannedPointID, threadID)
+		return fmt.Errorf("materialize: planned point %s in thread %s: %w", plannedPointID, threadID, ErrNotFound)
 	}
 	return tx.Commit()
 }

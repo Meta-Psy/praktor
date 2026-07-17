@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func mkThread(id, project, title string) Thread {
 	return Thread{ID: id, ProjectKey: project, Title: title, Status: "active"}
@@ -278,5 +281,32 @@ func TestSetIdeaThreadsRollback(t *testing.T) {
 	ideas, _ := s.ListIdeas()
 	if len(ideas) != 1 || len(ideas[0].ThreadIDs) != 1 || ideas[0].ThreadIDs[0] != "t1" {
 		t.Fatalf("links after failed replace = %+v, want [t1] preserved", ideas)
+	}
+}
+
+func TestConfirmPointNotFoundSentinel(t *testing.T) {
+	s := newTestStore(t)
+	err := s.ConfirmPoint("nope", "t1")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("confirm missing: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMaterializePointNotFoundSentinel(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateThread(mkThread("t1", "praktor", "Штаб UX")); err != nil {
+		t.Fatalf("thread: %v", err)
+	}
+	// нет pr-точки → ErrNotFound
+	if err := s.MaterializePoint("no-pr", "no-planned", "t1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing pr: err = %v, want ErrNotFound", err)
+	}
+	// pr-точка есть, planned нет → ErrNotFound
+	if err := s.CreatePoint(ThreadPoint{ID: "pr1", Kind: "pr", Title: "x",
+		Repo: "o/r", PRNumber: 1}); err != nil {
+		t.Fatalf("point: %v", err)
+	}
+	if err := s.MaterializePoint("pr1", "no-planned", "t1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing planned: err = %v, want ErrNotFound", err)
 	}
 }
