@@ -197,3 +197,55 @@ func TestMaterializeRollbackAndGetPoint(t *testing.T) {
 		t.Fatalf("GetPoint missing: %v, %+v", err, missing)
 	}
 }
+
+func TestIdeasAndNotes(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreateThread(mkThread("t1", "praktor", "Контроль проектов"))
+	_ = s.CreateThread(mkThread("t2", "mentis", "Контент-фабрика"))
+
+	if err := s.CreateIdea(Idea{ID: "i1", Title: "Контроль всех проектов", Status: "active"}); err != nil {
+		t.Fatalf("create idea: %v", err)
+	}
+	if err := s.SetIdeaThreads("i1", []string{"t1", "t2"}); err != nil {
+		t.Fatalf("set idea threads: %v", err)
+	}
+	ideas, err := s.ListIdeas()
+	if err != nil || len(ideas) != 1 {
+		t.Fatalf("list ideas: %v, len=%d", err, len(ideas))
+	}
+	if len(ideas[0].ThreadIDs) != 2 {
+		t.Errorf("thread_ids = %v, want 2", ideas[0].ThreadIDs)
+	}
+
+	// замена связей
+	if err := s.SetIdeaThreads("i1", []string{"t2"}); err != nil {
+		t.Fatalf("replace: %v", err)
+	}
+	ideas, _ = s.ListIdeas()
+	if len(ideas[0].ThreadIDs) != 1 || ideas[0].ThreadIDs[0] != "t2" {
+		t.Errorf("after replace = %v", ideas[0].ThreadIDs)
+	}
+
+	// каскад: удаление нити чистит связь
+	_ = s.DeleteThread("t2")
+	ideas, _ = s.ListIdeas()
+	if len(ideas[0].ThreadIDs) != 0 {
+		t.Errorf("after thread delete = %v", ideas[0].ThreadIDs)
+	}
+
+	if err := s.DeleteIdea("i1"); err != nil {
+		t.Fatalf("delete idea: %v", err)
+	}
+	if ideas, _ = s.ListIdeas(); len(ideas) != 0 {
+		t.Errorf("ideas left = %d", len(ideas))
+	}
+
+	// заметки
+	if err := s.CreateNote(ThreadNote{ID: "n1", ThreadID: "t1", Body: "решение: сначала карта", Source: "chat"}); err != nil {
+		t.Fatalf("create note: %v", err)
+	}
+	notes, err := s.ListNotes("t1")
+	if err != nil || len(notes) != 1 || notes[0].Body != "решение: сначала карта" {
+		t.Fatalf("notes: %v, %+v", err, notes)
+	}
+}

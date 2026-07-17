@@ -268,3 +268,135 @@ func (s *Store) MaterializePoint(prPointID, plannedPointID, threadID string) err
 	}
 	return tx.Commit()
 }
+
+// Idea is a cross-project connection between threads («сквозная идея»).
+type Idea struct {
+	ID        string
+	Title     string
+	Summary   string
+	Status    string // active|done|dropped
+	CreatedAt string
+	ThreadIDs []string
+}
+
+func (s *Store) CreateIdea(i Idea) error {
+	_, err := s.db.Exec(`INSERT INTO ideas (id, title, summary, status) VALUES (?, ?, ?, ?)`,
+		i.ID, i.Title, i.Summary, i.Status)
+	if err != nil {
+		return fmt.Errorf("create idea: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateIdea(i Idea) error {
+	_, err := s.db.Exec(`UPDATE ideas SET title = ?, summary = ?, status = ? WHERE id = ?`,
+		i.Title, i.Summary, i.Status, i.ID)
+	if err != nil {
+		return fmt.Errorf("update idea: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) DeleteIdea(id string) error {
+	_, err := s.db.Exec(`DELETE FROM ideas WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("delete idea: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) SetIdeaThreads(ideaID string, threadIDs []string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DELETE FROM idea_threads WHERE idea_id = ?`, ideaID); err != nil {
+		return fmt.Errorf("clear idea threads: %w", err)
+	}
+	for _, tid := range threadIDs {
+		if _, err := tx.Exec(`INSERT INTO idea_threads (idea_id, thread_id) VALUES (?, ?)`,
+			ideaID, tid); err != nil {
+			return fmt.Errorf("link idea thread: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ListIdeas() ([]Idea, error) {
+	rows, err := s.db.Query(`SELECT id, title, summary, status, created_at FROM ideas ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("list ideas: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Idea
+	// Индексы, не указатели: append может реаллоцировать слайс.
+	idx := map[string]int{}
+	for rows.Next() {
+		var i Idea
+		var created sql.NullString
+		if err := rows.Scan(&i.ID, &i.Title, &i.Summary, &i.Status, &created); err != nil {
+			return nil, fmt.Errorf("scan idea: %w", err)
+		}
+		i.CreatedAt = created.String
+		i.ThreadIDs = []string{}
+		out = append(out, i)
+		idx[i.ID] = len(out) - 1
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	links, err := s.db.Query(`SELECT idea_id, thread_id FROM idea_threads`)
+	if err != nil {
+		return nil, fmt.Errorf("list idea links: %w", err)
+	}
+	defer func() { _ = links.Close() }()
+	for links.Next() {
+		var ideaID, threadID string
+		if err := links.Scan(&ideaID, &threadID); err != nil {
+			return nil, fmt.Errorf("scan idea link: %w", err)
+		}
+		if n, ok := idx[ideaID]; ok {
+			out[n].ThreadIDs = append(out[n].ThreadIDs, threadID)
+		}
+	}
+	return out, links.Err()
+}
+
+// ThreadNote is a fixed decision attached to a thread.
+type ThreadNote struct {
+	ID        string
+	ThreadID  string
+	Body      string
+	Source    string // manual|chat
+	CreatedAt string
+}
+
+func (s *Store) CreateNote(n ThreadNote) error {
+	_, err := s.db.Exec(`INSERT INTO thread_notes (id, thread_id, body, source) VALUES (?, ?, ?, ?)`,
+		n.ID, n.ThreadID, n.Body, n.Source)
+	if err != nil {
+		return fmt.Errorf("create note: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ListNotes(threadID string) ([]ThreadNote, error) {
+	rows, err := s.db.Query(`SELECT id, thread_id, body, source, created_at
+		FROM thread_notes WHERE thread_id = ? ORDER BY created_at DESC`, threadID)
+	if err != nil {
+		return nil, fmt.Errorf("list notes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []ThreadNote
+	for rows.Next() {
+		var n ThreadNote
+		var created sql.NullString
+		if err := rows.Scan(&n.ID, &n.ThreadID, &n.Body, &n.Source, &created); err != nil {
+			return nil, fmt.Errorf("scan note: %w", err)
+		}
+		n.CreatedAt = created.String
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
