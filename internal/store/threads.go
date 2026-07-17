@@ -305,6 +305,35 @@ func (s *Store) DeleteIdea(id string) error {
 	return nil
 }
 
+// GetIdea returns one idea with its linked thread IDs, or nil if absent.
+func (s *Store) GetIdea(id string) (*Idea, error) {
+	var i Idea
+	var created sql.NullString
+	err := s.db.QueryRow(`SELECT id, title, summary, status, created_at FROM ideas WHERE id = ?`, id).
+		Scan(&i.ID, &i.Title, &i.Summary, &i.Status, &created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get idea: %w", err)
+	}
+	i.CreatedAt = created.String
+	i.ThreadIDs = []string{}
+	rows, err := s.db.Query(`SELECT thread_id FROM idea_threads WHERE idea_id = ? ORDER BY rowid`, id)
+	if err != nil {
+		return nil, fmt.Errorf("get idea links: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var tid string
+		if err := rows.Scan(&tid); err != nil {
+			return nil, fmt.Errorf("scan idea link: %w", err)
+		}
+		i.ThreadIDs = append(i.ThreadIDs, tid)
+	}
+	return &i, rows.Err()
+}
+
 func (s *Store) SetIdeaThreads(ideaID string, threadIDs []string) error {
 	tx, err := s.db.Begin()
 	if err != nil {

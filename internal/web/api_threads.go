@@ -137,7 +137,7 @@ func (s *Server) updateThread(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Title   string `json:"title"`
-		Summary string `json:"summary"`
+		Summary *string `json:"summary"`
 		Color   string `json:"color"`
 		Status  string `json:"status"`
 	}
@@ -148,7 +148,9 @@ func (s *Server) updateThread(w http.ResponseWriter, r *http.Request) {
 	if body.Title != "" {
 		existing.Title = body.Title
 	}
-	existing.Summary = body.Summary
+	if body.Summary != nil {
+		existing.Summary = *body.Summary
+	}
 	if body.Color != "" {
 		existing.Color = body.Color
 	}
@@ -228,7 +230,7 @@ func (s *Server) updatePoint(w http.ResponseWriter, r *http.Request) {
 	}
 	var body struct {
 		Title    string `json:"title"`
-		Summary  string `json:"summary"`
+		Summary  *string `json:"summary"`
 		Position *int64 `json:"position"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -238,7 +240,9 @@ func (s *Server) updatePoint(w http.ResponseWriter, r *http.Request) {
 	if body.Title != "" {
 		existing.Title = body.Title
 	}
-	existing.Summary = body.Summary
+	if body.Summary != nil {
+		existing.Summary = *body.Summary
+	}
 	if body.Position != nil {
 		existing.Position = *body.Position
 	}
@@ -287,7 +291,12 @@ func (s *Server) confirmPoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "thread_id is required", http.StatusBadRequest)
 		return
 	}
-	if th, err := s.store.GetThread(body.ThreadID); err != nil || th == nil {
+	th, err := s.store.GetThread(body.ThreadID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if th == nil {
 		jsonError(w, "thread not found", http.StatusNotFound)
 		return
 	}
@@ -306,7 +315,12 @@ func (s *Server) confirmPoint(w http.ResponseWriter, r *http.Request) {
 // createThreadNote is POST /api/threads/{id}/notes.
 func (s *Server) createThreadNote(w http.ResponseWriter, r *http.Request) {
 	threadID := r.PathValue("id")
-	if th, err := s.store.GetThread(threadID); err != nil || th == nil {
+	th, err := s.store.GetThread(threadID)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if th == nil {
 		jsonError(w, "thread not found", http.StatusNotFound)
 		return
 	}
@@ -349,6 +363,9 @@ func (s *Server) createIdea(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "title is required", http.StatusBadRequest)
 		return
 	}
+	if body.ThreadIDs == nil {
+		body.ThreadIDs = []string{}
+	}
 	i := store.Idea{ID: uuid.New().String(), Title: body.Title, Summary: body.Summary, Status: "active"}
 	if err := s.store.CreateIdea(i); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -364,12 +381,20 @@ func (s *Server) createIdea(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, toIdeaAPI(i))
 }
 
-// updateIdea is PUT /api/ideas/{id} (title/summary/status/thread_ids).
+// updateIdea is PUT /api/ideas/{id} — load-then-merge partial update.
 func (s *Server) updateIdea(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+	existing, err := s.store.GetIdea(r.PathValue("id"))
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if existing == nil {
+		jsonError(w, "idea not found", http.StatusNotFound)
+		return
+	}
 	var body struct {
 		Title     string    `json:"title"`
-		Summary   string    `json:"summary"`
+		Summary   *string   `json:"summary"`
 		Status    string    `json:"status"`
 		ThreadIDs *[]string `json:"thread_ids"`
 	}
@@ -377,24 +402,25 @@ func (s *Server) updateIdea(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if body.Status != "" && !validThreadStatus(body.Status) {
-		jsonError(w, "status must be active|done|dropped", http.StatusBadRequest)
-		return
+	if body.Title != "" {
+		existing.Title = body.Title
 	}
-	if body.Title == "" {
-		jsonError(w, "title is required", http.StatusBadRequest)
-		return
+	if body.Summary != nil {
+		existing.Summary = *body.Summary
 	}
-	if body.Status == "" {
-		body.Status = "active"
+	if body.Status != "" {
+		if !validThreadStatus(body.Status) {
+			jsonError(w, "status must be active|done|dropped", http.StatusBadRequest)
+			return
+		}
+		existing.Status = body.Status
 	}
-	if err := s.store.UpdateIdea(store.Idea{ID: id, Title: body.Title,
-		Summary: body.Summary, Status: body.Status}); err != nil {
+	if err := s.store.UpdateIdea(*existing); err != nil {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if body.ThreadIDs != nil {
-		if err := s.store.SetIdeaThreads(id, *body.ThreadIDs); err != nil {
+		if err := s.store.SetIdeaThreads(existing.ID, *body.ThreadIDs); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

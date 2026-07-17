@@ -190,3 +190,95 @@ func TestNotesAndIdeas(t *testing.T) {
 		t.Errorf("ideas = %+v", ideas)
 	}
 }
+
+func TestPartialUpdatePreservesSummary(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st}
+	seedThread(t, st, "t1", "praktor", "Штаб UX")
+	th, _ := st.GetThread("t1")
+	th.Summary = "важный контекст"
+	_ = st.UpdateThread(*th)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/threads/t1", strings.NewReader(`{"status":"done"}`))
+	req.SetPathValue("id", "t1")
+	rec := httptest.NewRecorder()
+	srv.updateThread(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update = %d", rec.Code)
+	}
+	got, _ := st.GetThread("t1")
+	if got.Summary != "важный контекст" {
+		t.Errorf("summary wiped: %+v", got)
+	}
+
+	_ = st.CreatePoint(store.ThreadPoint{ID: "p1", ThreadID: "t1", Kind: "planned", Title: "точка", Summary: "описание", Confirmed: true})
+	req = httptest.NewRequest(http.MethodPut, "/api/points/p1", strings.NewReader(`{"position":9}`))
+	req.SetPathValue("id", "p1")
+	rec = httptest.NewRecorder()
+	srv.updatePoint(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("point update = %d", rec.Code)
+	}
+	p, _ := st.GetPoint("p1")
+	if p.Summary != "описание" || p.Position != 9 {
+		t.Errorf("point after partial = %+v", p)
+	}
+}
+
+func TestUpdateIdeaPartialAndMissing(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st}
+	seedThread(t, st, "t1", "praktor", "Штаб UX")
+	_ = st.CreateIdea(store.Idea{ID: "i1", Title: "Идея", Summary: "ctx", Status: "dropped"})
+
+	// только relink — статус и summary сохраняются
+	req := httptest.NewRequest(http.MethodPut, "/api/ideas/i1", strings.NewReader(`{"thread_ids":["t1"]}`))
+	req.SetPathValue("id", "i1")
+	rec := httptest.NewRecorder()
+	srv.updateIdea(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	ideas, _ := st.ListIdeas()
+	if ideas[0].Status != "dropped" || ideas[0].Summary != "ctx" || len(ideas[0].ThreadIDs) != 1 {
+		t.Errorf("after relink = %+v", ideas[0])
+	}
+
+	// несуществующая — 404
+	req = httptest.NewRequest(http.MethodPut, "/api/ideas/ghost", strings.NewReader(`{"title":"x"}`))
+	req.SetPathValue("id", "ghost")
+	rec = httptest.NewRecorder()
+	srv.updateIdea(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing idea = %d, want 404", rec.Code)
+	}
+}
+
+func TestConfirmPlainAndMissingThread(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st}
+	seedThread(t, st, "t1", "praktor", "Штаб UX")
+	_ = st.CreatePoint(store.ThreadPoint{ID: "sugg", Kind: "pr", Title: "PR", Repo: "Meta-Psy/praktor", PRNumber: 41, PRState: "open", Confirmed: false})
+
+	// plain confirm без материализации
+	req := httptest.NewRequest(http.MethodPost, "/api/points/sugg/confirm", strings.NewReader(`{"thread_id":"t1"}`))
+	req.SetPathValue("id", "sugg")
+	rec := httptest.NewRecorder()
+	srv.confirmPoint(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirm = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	p, _ := st.GetPoint("sugg")
+	if !p.Confirmed || p.ThreadID != "t1" {
+		t.Errorf("after confirm = %+v", p)
+	}
+
+	// несуществующая нить — 404
+	req = httptest.NewRequest(http.MethodPost, "/api/points/sugg/confirm", strings.NewReader(`{"thread_id":"ghost"}`))
+	req.SetPathValue("id", "sugg")
+	rec = httptest.NewRecorder()
+	srv.confirmPoint(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("ghost thread = %d, want 404", rec.Code)
+	}
+}
