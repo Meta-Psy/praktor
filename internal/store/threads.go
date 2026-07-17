@@ -346,7 +346,7 @@ func (s *Store) ListIdeas() ([]Idea, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	links, err := s.db.Query(`SELECT idea_id, thread_id FROM idea_threads`)
+	links, err := s.db.Query(`SELECT idea_id, thread_id FROM idea_threads ORDER BY rowid`)
 	if err != nil {
 		return nil, fmt.Errorf("list idea links: %w", err)
 	}
@@ -383,7 +383,7 @@ func (s *Store) CreateNote(n ThreadNote) error {
 
 func (s *Store) ListNotes(threadID string) ([]ThreadNote, error) {
 	rows, err := s.db.Query(`SELECT id, thread_id, body, source, created_at
-		FROM thread_notes WHERE thread_id = ? ORDER BY created_at DESC`, threadID)
+		FROM thread_notes WHERE thread_id = ? ORDER BY created_at DESC, rowid DESC`, threadID)
 	if err != nil {
 		return nil, fmt.Errorf("list notes: %w", err)
 	}

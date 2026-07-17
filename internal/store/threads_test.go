@@ -249,3 +249,34 @@ func TestIdeasAndNotes(t *testing.T) {
 		t.Fatalf("notes: %v, %+v", err, notes)
 	}
 }
+
+func TestNotesOrderSameSecond(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreateThread(mkThread("t1", "praktor", "Штаб UX"))
+	for _, id := range []string{"n1", "n2", "n3"} {
+		if err := s.CreateNote(ThreadNote{ID: id, ThreadID: "t1", Body: id, Source: "manual"}); err != nil {
+			t.Fatalf("create %s: %v", id, err)
+		}
+	}
+	notes, err := s.ListNotes("t1")
+	if err != nil || len(notes) != 3 {
+		t.Fatalf("list: %v, len=%d", err, len(notes))
+	}
+	if notes[0].ID != "n3" || notes[2].ID != "n1" {
+		t.Errorf("order = %s,%s,%s, want n3,n2,n1", notes[0].ID, notes[1].ID, notes[2].ID)
+	}
+}
+
+func TestSetIdeaThreadsRollback(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreateThread(mkThread("t1", "praktor", "Штаб UX"))
+	_ = s.CreateIdea(Idea{ID: "i1", Title: "Идея", Status: "active"})
+	_ = s.SetIdeaThreads("i1", []string{"t1"})
+	if err := s.SetIdeaThreads("i1", []string{"t1", "no-such"}); err == nil {
+		t.Fatal("unknown thread id must fail")
+	}
+	ideas, _ := s.ListIdeas()
+	if len(ideas) != 1 || len(ideas[0].ThreadIDs) != 1 || ideas[0].ThreadIDs[0] != "t1" {
+		t.Fatalf("links after failed replace = %+v, want [t1] preserved", ideas)
+	}
+}
