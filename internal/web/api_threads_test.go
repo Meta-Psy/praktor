@@ -282,3 +282,35 @@ func TestConfirmPlainAndMissingThread(t *testing.T) {
 		t.Fatalf("ghost thread = %d, want 404", rec.Code)
 	}
 }
+
+func TestConfirmPointMissing404(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st}
+	seedThread(t, st, "t1", "praktor", "Штаб UX")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/points/nope/confirm",
+		strings.NewReader(`{"thread_id":"t1"}`))
+	req.SetPathValue("id", "nope")
+	rec := httptest.NewRecorder()
+	srv.confirmPoint(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("confirm missing point = %d, want 404 (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMaterializeMissingPlanned404(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st}
+	seedThread(t, st, "t1", "praktor", "Штаб UX")
+	_ = st.CreatePoint(store.ThreadPoint{ID: "pr1", Kind: "pr", Title: "x",
+		Repo: "Meta-Psy/praktor", PRNumber: 30})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/points/pr1/confirm",
+		strings.NewReader(`{"thread_id":"t1","materialize_point_id":"nope"}`))
+	req.SetPathValue("id", "pr1")
+	rec := httptest.NewRecorder()
+	srv.confirmPoint(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("materialize missing planned = %d, want 404 (body=%s)", rec.Code, rec.Body.String())
+	}
+}

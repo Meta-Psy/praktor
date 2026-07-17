@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -301,12 +302,16 @@ func (s *Server) confirmPoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.MaterializePointID != "" {
-		if err := s.store.MaterializePoint(id, body.MaterializePointID, body.ThreadID); err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
+		err = s.store.MaterializePoint(id, body.MaterializePointID, body.ThreadID)
+	} else {
+		err = s.store.ConfirmPoint(id, body.ThreadID)
+	}
+	if err != nil {
+		code := http.StatusInternalServerError
+		if errors.Is(err, store.ErrNotFound) {
+			code = http.StatusNotFound
 		}
-	} else if err := s.store.ConfirmPoint(id, body.ThreadID); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), code)
 		return
 	}
 	jsonResponse(w, map[string]string{"status": "confirmed"})
