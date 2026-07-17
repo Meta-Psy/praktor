@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func mkThread(id, project, title string) Thread {
 	return Thread{ID: id, ProjectKey: project, Title: title, Status: "active"}
@@ -278,5 +281,90 @@ func TestSetIdeaThreadsRollback(t *testing.T) {
 	ideas, _ := s.ListIdeas()
 	if len(ideas) != 1 || len(ideas[0].ThreadIDs) != 1 || ideas[0].ThreadIDs[0] != "t1" {
 		t.Fatalf("links after failed replace = %+v, want [t1] preserved", ideas)
+	}
+}
+
+func TestConfirmPointNotFoundSentinel(t *testing.T) {
+	s := newTestStore(t)
+	err := s.ConfirmPoint("nope", "t1")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("confirm missing: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestMaterializePointNotFoundSentinel(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreateThread(mkThread("t1", "praktor", "Штаб UX")); err != nil {
+		t.Fatalf("thread: %v", err)
+	}
+	// нет pr-точки → ErrNotFound
+	if err := s.MaterializePoint("no-pr", "no-planned", "t1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing pr: err = %v, want ErrNotFound", err)
+	}
+	// pr-точка есть, planned нет → ErrNotFound
+	if err := s.CreatePoint(ThreadPoint{ID: "pr1", Kind: "pr", Title: "x",
+		Repo: "o/r", PRNumber: 1}); err != nil {
+		t.Fatalf("point: %v", err)
+	}
+	if err := s.MaterializePoint("pr1", "no-planned", "t1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing planned: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestGetPointByPR(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.CreatePoint(ThreadPoint{ID: "p1", Kind: "pr", Title: "x",
+		Repo: "Meta-Psy/praktor", PRNumber: 27, PRState: "open"}); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := s.GetPointByPR("Meta-Psy/praktor", 27)
+	if err != nil || got == nil || got.ID != "p1" {
+		t.Fatalf("get = %+v, %v", got, err)
+	}
+	missing, err := s.GetPointByPR("Meta-Psy/praktor", 999)
+	if err != nil || missing != nil {
+		t.Fatalf("missing = %+v, %v", missing, err)
+	}
+}
+
+func TestUpdatePointPRState(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreatePoint(ThreadPoint{ID: "p1", Kind: "pr", Title: "x",
+		Repo: "o/r", PRNumber: 1, PRState: "open"})
+	if err := s.UpdatePointPRState("p1", "merged", "2026-07-17T10:00:00Z"); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	got, _ := s.GetPoint("p1")
+	if got.PRState != "merged" || got.EventDate != "2026-07-17T10:00:00Z" {
+		t.Errorf("after update = %+v", got)
+	}
+	if err := s.UpdatePointPRState("nope", "merged", ""); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing: err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestListProjectThreads(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreateThread(mkThread("t1", "praktor", "Штаб UX"))
+	_ = s.CreateThread(mkThread("t2", "mentis", "Стратегия"))
+	got, err := s.ListProjectThreads("praktor")
+	if err != nil || len(got) != 1 || got[0].ID != "t1" {
+		t.Fatalf("list praktor = %+v, %v", got, err)
+	}
+}
+
+func TestThreadsMeta(t *testing.T) {
+	s := newTestStore(t)
+	if v, err := s.GetThreadsMeta("last_sync_success"); err != nil || v != "" {
+		t.Fatalf("empty meta = %q, %v", v, err)
+	}
+	if err := s.SetThreadsMeta("last_sync_success", "2026-07-17T10:00:00Z"); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if err := s.SetThreadsMeta("last_sync_success", "2026-07-17T11:00:00Z"); err != nil {
+		t.Fatalf("overwrite: %v", err)
+	}
+	if v, _ := s.GetThreadsMeta("last_sync_success"); v != "2026-07-17T11:00:00Z" {
+		t.Fatalf("meta = %q", v)
 	}
 }

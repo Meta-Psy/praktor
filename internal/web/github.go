@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mtzanidakis/praktor/internal/radar"
+	"github.com/mtzanidakis/praktor/internal/threads"
 )
 
 // ErrNotFound is returned by read methods when the GitHub API responds 404
@@ -199,6 +200,40 @@ func (c *GitHubClient) OpenPRs(ctx context.Context, repo string) ([]PRInfo, erro
 	out := make([]PRInfo, 0, len(raw))
 	for _, p := range raw {
 		out = append(out, PRInfo{Number: p.Number, Title: p.Title, URL: p.HTMLURL, Draft: p.Draft})
+	}
+	return out, nil
+}
+
+// ListPRs возвращает все pull requests (state=all) репозитория owner/name.
+// Пагинация: до 10 страниц по 100 — с запасом для наших репо; DTO — в
+// пакете-потребителе (как SearchRepos → radar.RadarRepo).
+func (c *GitHubClient) ListPRs(ctx context.Context, repo string) ([]threads.PR, error) {
+	var out []threads.PR
+	for page := 1; page <= 10; page++ {
+		var raw []struct {
+			Number    int64  `json:"number"`
+			Title     string `json:"title"`
+			HTMLURL   string `json:"html_url"`
+			State     string `json:"state"`
+			MergedAt  string `json:"merged_at"`
+			ClosedAt  string `json:"closed_at"`
+			CreatedAt string `json:"created_at"`
+			Head      struct {
+				Ref string `json:"ref"`
+			} `json:"head"`
+		}
+		path := fmt.Sprintf("/repos/%s/pulls?state=all&per_page=100&page=%d", repo, page)
+		if err := c.get(ctx, path, &raw); err != nil {
+			return nil, err
+		}
+		for _, p := range raw {
+			out = append(out, threads.PR{Number: p.Number, Title: p.Title, URL: p.HTMLURL,
+				State: p.State, MergedAt: p.MergedAt, ClosedAt: p.ClosedAt,
+				CreatedAt: p.CreatedAt, HeadRef: p.Head.Ref})
+		}
+		if len(raw) < 100 {
+			break
+		}
 	}
 	return out, nil
 }

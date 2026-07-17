@@ -3,8 +3,10 @@ package web
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -180,5 +182,60 @@ func TestGetFileWithSHA(t *testing.T) {
 	}
 	if sha != "deadbeef" {
 		t.Errorf("sha = %q, want deadbeef", sha)
+	}
+}
+
+func TestListPRsMapsFields(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/repos/o/r/pulls") {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("state") != "all" {
+			t.Errorf("state = %s, want all", r.URL.Query().Get("state"))
+		}
+		_, _ = w.Write([]byte(`[
+			{"number":27,"title":"feat: threads","html_url":"http://x/27","state":"closed",
+			 "merged_at":"2026-07-17T10:00:00Z","closed_at":"2026-07-17T10:00:00Z",
+			 "created_at":"2026-07-16T09:00:00Z","head":{"ref":"feature/idea-threads"}},
+			{"number":28,"title":"wip","html_url":"http://x/28","state":"open",
+			 "merged_at":null,"closed_at":null,
+			 "created_at":"2026-07-17T09:00:00Z","head":{"ref":"fix/misc"}}
+		]`))
+	}))
+	defer srv.Close()
+
+	c := &GitHubClient{BaseURL: srv.URL}
+	prs, err := c.ListPRs(context.Background(), "o/r")
+	if err != nil || len(prs) != 2 {
+		t.Fatalf("list = %v, %v", prs, err)
+	}
+	if prs[0].Number != 27 || prs[0].HeadRef != "feature/idea-threads" || prs[0].PRState() != "merged" {
+		t.Errorf("pr27 = %+v", prs[0])
+	}
+	if prs[1].PRState() != "open" || prs[1].EventDate() != "2026-07-17T09:00:00Z" {
+		t.Errorf("pr28 = %+v", prs[1])
+	}
+}
+
+func TestListPRsPagination(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		if page == "1" {
+			// ровно 100 элементов → клиент должен запросить страницу 2
+			items := make([]string, 100)
+			for i := range items {
+				items[i] = fmt.Sprintf(`{"number":%d,"title":"t","html_url":"u","state":"open","created_at":"2026-01-01T00:00:00Z","head":{"ref":"b"}}`, i+1)
+			}
+			_, _ = w.Write([]byte("[" + strings.Join(items, ",") + "]"))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"number":101,"title":"t","html_url":"u","state":"open","created_at":"2026-01-01T00:00:00Z","head":{"ref":"b"}}]`))
+	}))
+	defer srv.Close()
+
+	c := &GitHubClient{BaseURL: srv.URL}
+	prs, err := c.ListPRs(context.Background(), "o/r")
+	if err != nil || len(prs) != 101 {
+		t.Fatalf("len = %d, %v; want 101", len(prs), err)
 	}
 }

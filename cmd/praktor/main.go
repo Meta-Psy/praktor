@@ -25,6 +25,7 @@ import (
 	"github.com/mtzanidakis/praktor/internal/store"
 	"github.com/mtzanidakis/praktor/internal/swarm"
 	"github.com/mtzanidakis/praktor/internal/telegram"
+	"github.com/mtzanidakis/praktor/internal/threads"
 	"github.com/mtzanidakis/praktor/internal/vault"
 	"github.com/mtzanidakis/praktor/internal/web"
 )
@@ -156,6 +157,33 @@ func runGateway() error {
 		slog.Info("intel started", "sources", len(cfg.Intel.Sources))
 	}
 
+	// «Нити идей»: синк PR с GitHub (фаза 2) — стартовый гейт, без hot reload.
+	var thSync *threads.Syncer
+	if len(cfg.Projects) > 0 {
+		repos := make(map[string]string, len(cfg.Projects))
+		for name, def := range cfg.Projects {
+			if def.Repo != "" {
+				repos[name] = def.Repo
+			}
+		}
+		publish := func() {}
+		if evClient, err := natsbus.NewClient(bus); err != nil {
+			slog.Warn("threads sync events disabled: nats client", "error", err)
+		} else {
+			publish = func() {
+				_ = evClient.PublishJSON(natsbus.TopicEventsThreads, map[string]any{
+					"type":    "thread_updated",
+					"payload": map[string]string{"source": "sync"},
+				})
+			}
+		}
+		thSync = threads.NewSyncer(
+			&web.GitHubClient{Token: os.Getenv("GITHUB_READ_TOKEN")},
+			db, repos, cfg.Threads.SyncInterval, publish)
+		go thSync.Run(ctx)
+		slog.Info("threads sync started", "repos", len(repos), "interval", cfg.Threads.SyncInterval)
+	}
+
 	// Speech-to-text / text-to-speech (OpenAI API)
 	var speechClient *speech.Client
 	if cfg.Speech.APIKey != "" {
@@ -204,6 +232,9 @@ func runGateway() error {
 	// Web UI
 	if cfg.Web.Enabled {
 		srv := web.NewServer(db, bus, orch, reg, rtr, swarmCoord, cfg.Web, v, version, cfg.Projects, cfg.Telegram, cfg.Speech)
+		if thSync != nil {
+			srv.SetThreadSync(thSync)
+		}
 		go func() {
 			if err := srv.Start(ctx); err != nil {
 				slog.Error("web server error", "error", err)

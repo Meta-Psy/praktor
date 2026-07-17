@@ -76,3 +76,7 @@ projects:
     health: http://gnathology-bot:8099/health
     deploy_host_dir: /opt/apps/gnathology-bot
     deploy_compose_project: gnathology-bot
+
+# Синк «нитей идей» с GitHub (активен при непустом projects)
+threads:
+  sync_interval: 10m

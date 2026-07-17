@@ -94,6 +94,7 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 
 	// Idea threads (см. _specs/2026-07-17-praktor-idea-threads-design.md)
 	mux.HandleFunc("GET /api/threads/map", s.handleThreadsMap)
+	mux.HandleFunc("POST /api/threads/sync", s.handleThreadsSync)
 	mux.HandleFunc("GET /api/threads/inbox", s.threadsInbox)
 	mux.HandleFunc("POST /api/threads", s.createThread)
 	mux.HandleFunc("PUT /api/threads/{id}", s.updateThread)

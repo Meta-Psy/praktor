@@ -1,12 +1,15 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mtzanidakis/praktor/internal/store"
+	"github.com/mtzanidakis/praktor/internal/threads"
 )
 
 type threadAPI struct {
@@ -45,9 +48,10 @@ type ideaAPI struct {
 }
 
 type threadsMapResponse struct {
-	Threads []threadAPI `json:"threads"`
-	Points  []pointAPI  `json:"points"`
-	Ideas   []ideaAPI   `json:"ideas"`
+	Threads []threadAPI     `json:"threads"`
+	Points  []pointAPI      `json:"points"`
+	Ideas   []ideaAPI       `json:"ideas"`
+	Sync    *threads.Status `json:"sync,omitempty"`
 }
 
 func toThreadAPI(t store.Thread) threadAPI {
@@ -67,6 +71,15 @@ func toIdeaAPI(i store.Idea) ideaAPI {
 }
 
 func validThreadStatus(s string) bool { return s == "active" || s == "done" || s == "dropped" }
+
+// notifyThreadsChanged шлёт thread_updated в WebSocket после CRUD-правок
+// нитей/точек/идей. hub == nil в handler-тестах — молча пропускаем.
+func (s *Server) notifyThreadsChanged() {
+	if s.hub == nil {
+		return
+	}
+	s.hub.Broadcast(Event{Type: "thread_updated"})
+}
 
 // handleThreadsMap is GET /api/threads/map — the whole mega-map in one JSON.
 func (s *Server) handleThreadsMap(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +108,27 @@ func (s *Server) handleThreadsMap(w http.ResponseWriter, r *http.Request) {
 	for _, i := range ideas {
 		resp.Ideas = append(resp.Ideas, toIdeaAPI(i))
 	}
+	if s.threadSync != nil {
+		st := s.threadSync.Status()
+		resp.Sync = &st
+	}
 	jsonResponse(w, resp)
+}
+
+// handleThreadsSync is POST /api/threads/sync — ручной запуск синка из UI.
+func (s *Server) handleThreadsSync(w http.ResponseWriter, r *http.Request) {
+	if s.threadSync == nil {
+		jsonError(w, "threads sync not configured", http.StatusServiceUnavailable)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	stats, err := s.threadSync.SyncOnce(ctx)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	jsonResponse(w, map[string]any{"stats": stats, "status": s.threadSync.Status()})
 }
 
 // createThread is POST /api/threads.
@@ -121,6 +154,7 @@ func (s *Server) createThread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toThreadAPI(t))
 }
 
@@ -171,6 +205,7 @@ func (s *Server) updateThread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toThreadAPI(*existing))
 }
 
@@ -180,6 +215,7 @@ func (s *Server) deleteThread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "deleted"})
 }
 
@@ -214,6 +250,7 @@ func (s *Server) createPlannedPoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toPointAPI(p))
 }
 
@@ -250,6 +287,7 @@ func (s *Server) updatePoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toPointAPI(*existing))
 }
 
@@ -259,6 +297,7 @@ func (s *Server) deletePoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "deleted"})
 }
 
@@ -301,14 +340,19 @@ func (s *Server) confirmPoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.MaterializePointID != "" {
-		if err := s.store.MaterializePoint(id, body.MaterializePointID, body.ThreadID); err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
+		err = s.store.MaterializePoint(id, body.MaterializePointID, body.ThreadID)
+	} else {
+		err = s.store.ConfirmPoint(id, body.ThreadID)
+	}
+	if err != nil {
+		code := http.StatusInternalServerError
+		if errors.Is(err, store.ErrNotFound) {
+			code = http.StatusNotFound
 		}
-	} else if err := s.store.ConfirmPoint(id, body.ThreadID); err != nil {
-		jsonError(w, err.Error(), http.StatusInternalServerError)
+		jsonError(w, err.Error(), code)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "confirmed"})
 }
 
@@ -345,6 +389,7 @@ func (s *Server) createThreadNote(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"id": n.ID, "status": "created"})
 }
 
@@ -378,6 +423,7 @@ func (s *Server) createIdea(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	i.ThreadIDs = body.ThreadIDs
+	s.notifyThreadsChanged()
 	jsonResponse(w, toIdeaAPI(i))
 }
 
@@ -425,6 +471,7 @@ func (s *Server) updateIdea(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "updated"})
 }
 
@@ -434,5 +481,6 @@ func (s *Server) deleteIdea(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "deleted"})
 }
