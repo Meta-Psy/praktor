@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mtzanidakis/praktor/internal/store"
+	"github.com/mtzanidakis/praktor/internal/threads"
 )
 
 type threadAPI struct {
@@ -46,9 +48,10 @@ type ideaAPI struct {
 }
 
 type threadsMapResponse struct {
-	Threads []threadAPI `json:"threads"`
-	Points  []pointAPI  `json:"points"`
-	Ideas   []ideaAPI   `json:"ideas"`
+	Threads []threadAPI     `json:"threads"`
+	Points  []pointAPI      `json:"points"`
+	Ideas   []ideaAPI       `json:"ideas"`
+	Sync    *threads.Status `json:"sync,omitempty"`
 }
 
 func toThreadAPI(t store.Thread) threadAPI {
@@ -96,7 +99,27 @@ func (s *Server) handleThreadsMap(w http.ResponseWriter, r *http.Request) {
 	for _, i := range ideas {
 		resp.Ideas = append(resp.Ideas, toIdeaAPI(i))
 	}
+	if s.threadSync != nil {
+		st := s.threadSync.Status()
+		resp.Sync = &st
+	}
 	jsonResponse(w, resp)
+}
+
+// handleThreadsSync is POST /api/threads/sync — ручной запуск синка из UI.
+func (s *Server) handleThreadsSync(w http.ResponseWriter, r *http.Request) {
+	if s.threadSync == nil {
+		jsonError(w, "threads sync not configured", http.StatusServiceUnavailable)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	stats, err := s.threadSync.SyncOnce(ctx)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	jsonResponse(w, map[string]any{"stats": stats, "status": s.threadSync.Status()})
 }
 
 // createThread is POST /api/threads.

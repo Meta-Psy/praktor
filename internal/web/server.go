@@ -25,6 +25,7 @@ import (
 	"github.com/mtzanidakis/praktor/internal/speech"
 	"github.com/mtzanidakis/praktor/internal/store"
 	"github.com/mtzanidakis/praktor/internal/swarm"
+	"github.com/mtzanidakis/praktor/internal/threads"
 	"github.com/mtzanidakis/praktor/internal/vault"
 	"github.com/nats-io/nats.go"
 )
@@ -49,6 +50,12 @@ type ghWriter interface {
 type chatSender interface {
 	HandleMessage(ctx context.Context, agentID, text string, meta map[string]string) error
 	AbortSession(ctx context.Context, agentID string) error
+}
+
+// threadSyncer — поверхность синка «нитей идей» (фаза 2; mockable в тестах).
+type threadSyncer interface {
+	SyncOnce(ctx context.Context) (threads.Stats, error)
+	Status() threads.Status
 }
 
 type Server struct {
@@ -86,6 +93,8 @@ type Server struct {
 	transcriber transcriber   // S2 STT for web voice
 
 	radarFreshnessDays int // S5 radar is_new window (days)
+
+	threadSync threadSyncer // синк нитей с GitHub; nil = не сконфигурирован
 }
 
 func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *registry.Registry, rtr *router.Router, swarmCoord *swarm.Coordinator, cfg config.WebConfig, v *vault.Vault, version string, projects map[string]config.ProjectDefinition, tg config.TelegramConfig, speechCfg config.SpeechConfig) *Server {
@@ -149,6 +158,10 @@ func NewServer(s *store.Store, bus *natsbus.Bus, orch *agent.Orchestrator, reg *
 	}
 	return srv
 }
+
+// SetThreadSync подключает фоновый синк нитей (вызывается из main при
+// непустом projects; nil оставляет ручной синк отключённым).
+func (s *Server) SetThreadSync(ts threadSyncer) { s.threadSync = ts }
 
 func (s *Server) Start(ctx context.Context) error {
 	go s.hub.Run(ctx)

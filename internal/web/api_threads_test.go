@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/mtzanidakis/praktor/internal/store"
+	"github.com/mtzanidakis/praktor/internal/threads"
 )
 
 func seedThread(t *testing.T, st *store.Store, id, project, title string) {
@@ -312,5 +314,65 @@ func TestMaterializeMissingPlanned404(t *testing.T) {
 	srv.confirmPoint(rec, req)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("materialize missing planned = %d, want 404 (body=%s)", rec.Code, rec.Body.String())
+	}
+}
+
+type fakeThreadSyncer struct {
+	stats  threads.Stats
+	err    error
+	status threads.Status
+}
+
+func (f *fakeThreadSyncer) SyncOnce(context.Context) (threads.Stats, error) { return f.stats, f.err }
+func (f *fakeThreadSyncer) Status() threads.Status                          { return f.status }
+
+func TestThreadsSyncHandler(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st, threadSync: &fakeThreadSyncer{
+		stats:  threads.Stats{Added: 2, Updated: 1},
+		status: threads.Status{LastSuccess: "2026-07-17T10:00:00Z"},
+	}}
+	req := httptest.NewRequest(http.MethodPost, "/api/threads/sync", nil)
+	rec := httptest.NewRecorder()
+	srv.handleThreadsSync(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Stats  threads.Stats  `json:"stats"`
+		Status threads.Status `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Stats.Added != 2 || resp.Status.LastSuccess == "" {
+		t.Errorf("resp = %+v", resp)
+	}
+}
+
+func TestThreadsSyncUnconfigured503(t *testing.T) {
+	srv := &Server{store: newTestStoreForWeb(t)}
+	req := httptest.NewRequest(http.MethodPost, "/api/threads/sync", nil)
+	rec := httptest.NewRecorder()
+	srv.handleThreadsSync(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+}
+
+func TestThreadsMapIncludesSyncStatus(t *testing.T) {
+	st := newTestStoreForWeb(t)
+	srv := &Server{store: st, threadSync: &fakeThreadSyncer{
+		status: threads.Status{LastSuccess: "2026-07-17T10:00:00Z"},
+	}}
+	req := httptest.NewRequest(http.MethodGet, "/api/threads/map", nil)
+	rec := httptest.NewRecorder()
+	srv.handleThreadsMap(rec, req)
+	var resp threadsMapResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Sync == nil || resp.Sync.LastSuccess != "2026-07-17T10:00:00Z" {
+		t.Errorf("sync = %+v", resp.Sync)
 	}
 }
