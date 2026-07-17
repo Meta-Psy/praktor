@@ -43,6 +43,7 @@ type Syncer struct {
 
 	mu        sync.Mutex
 	lastError string
+	runMu     sync.Mutex // сериализует SyncOnce: тикер и ручной запуск не пересекаются
 }
 
 // NewSyncer собирает Syncer. interval <= 0 → 10 минут.
@@ -83,6 +84,9 @@ func (s *Syncer) Run(ctx context.Context) {
 // сбои копятся в Stats.Errors (деградация как в F.2), timestamp успеха
 // обновляется только при чистом проходе.
 func (s *Syncer) SyncOnce(ctx context.Context) (Stats, error) {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+
 	var st Stats
 	for key, repo := range s.projects {
 		prs, err := s.lister.ListPRs(ctx, repo)
