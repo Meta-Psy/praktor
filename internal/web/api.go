@@ -92,6 +92,21 @@ func (s *Server) registerAPI(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/intake/{id}/approve", s.handleIntakeApprove)
 	mux.HandleFunc("POST /api/intake/{id}/reject", s.handleIntakeReject)
 
+	// Idea threads (см. _specs/2026-07-17-praktor-idea-threads-design.md)
+	mux.HandleFunc("GET /api/threads/map", s.handleThreadsMap)
+	mux.HandleFunc("GET /api/threads/inbox", s.threadsInbox)
+	mux.HandleFunc("POST /api/threads", s.createThread)
+	mux.HandleFunc("PUT /api/threads/{id}", s.updateThread)
+	mux.HandleFunc("DELETE /api/threads/{id}", s.deleteThread)
+	mux.HandleFunc("POST /api/threads/{id}/points", s.createPlannedPoint)
+	mux.HandleFunc("POST /api/threads/{id}/notes", s.createThreadNote)
+	mux.HandleFunc("PUT /api/points/{id}", s.updatePoint)
+	mux.HandleFunc("DELETE /api/points/{id}", s.deletePoint)
+	mux.HandleFunc("POST /api/points/{id}/confirm", s.confirmPoint)
+	mux.HandleFunc("POST /api/ideas", s.createIdea)
+	mux.HandleFunc("PUT /api/ideas/{id}", s.updateIdea)
+	mux.HandleFunc("DELETE /api/ideas/{id}", s.deleteIdea)
+
 	// System
 	mux.HandleFunc("GET /api/status", s.getStatus)
 }
