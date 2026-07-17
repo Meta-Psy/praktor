@@ -376,3 +376,19 @@ func TestThreadsMapIncludesSyncStatus(t *testing.T) {
 		t.Errorf("sync = %+v", resp.Sync)
 	}
 }
+
+func TestNotifyThreadsChanged(t *testing.T) {
+	srv := &Server{} // hub нет — не должно паниковать (все handler-тесты так живут)
+	srv.notifyThreadsChanged()
+
+	srv.hub = NewHub()
+	srv.notifyThreadsChanged() // событие уходит в буферизованный канал
+	select {
+	case ev := <-srv.hub.broadcast:
+		if ev.Type != "thread_updated" {
+			t.Errorf("type = %s", ev.Type)
+		}
+	default:
+		t.Error("no event in hub channel")
+	}
+}

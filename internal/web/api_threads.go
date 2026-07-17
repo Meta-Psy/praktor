@@ -72,6 +72,15 @@ func toIdeaAPI(i store.Idea) ideaAPI {
 
 func validThreadStatus(s string) bool { return s == "active" || s == "done" || s == "dropped" }
 
+// notifyThreadsChanged шлёт thread_updated в WebSocket после CRUD-правок
+// нитей/точек/идей. hub == nil в handler-тестах — молча пропускаем.
+func (s *Server) notifyThreadsChanged() {
+	if s.hub == nil {
+		return
+	}
+	s.hub.Broadcast(Event{Type: "thread_updated"})
+}
+
 // handleThreadsMap is GET /api/threads/map — the whole mega-map in one JSON.
 func (s *Server) handleThreadsMap(w http.ResponseWriter, r *http.Request) {
 	threads, err := s.store.ListThreads()
@@ -145,6 +154,7 @@ func (s *Server) createThread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toThreadAPI(t))
 }
 
@@ -195,6 +205,7 @@ func (s *Server) updateThread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toThreadAPI(*existing))
 }
 
@@ -204,6 +215,7 @@ func (s *Server) deleteThread(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "deleted"})
 }
 
@@ -238,6 +250,7 @@ func (s *Server) createPlannedPoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toPointAPI(p))
 }
 
@@ -274,6 +287,7 @@ func (s *Server) updatePoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, toPointAPI(*existing))
 }
 
@@ -283,6 +297,7 @@ func (s *Server) deletePoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "deleted"})
 }
 
@@ -337,6 +352,7 @@ func (s *Server) confirmPoint(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), code)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "confirmed"})
 }
 
@@ -373,6 +389,7 @@ func (s *Server) createThreadNote(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"id": n.ID, "status": "created"})
 }
 
@@ -406,6 +423,7 @@ func (s *Server) createIdea(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	i.ThreadIDs = body.ThreadIDs
+	s.notifyThreadsChanged()
 	jsonResponse(w, toIdeaAPI(i))
 }
 
@@ -453,6 +471,7 @@ func (s *Server) updateIdea(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "updated"})
 }
 
@@ -462,5 +481,6 @@ func (s *Server) deleteIdea(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.notifyThreadsChanged()
 	jsonResponse(w, map[string]string{"status": "deleted"})
 }
