@@ -165,6 +165,55 @@ func (s *Store) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_intel_source_captured
 			ON intel_snapshots (source_key, captured_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS threads (
+			id              TEXT PRIMARY KEY,
+			project_key     TEXT NOT NULL,
+			title           TEXT NOT NULL,
+			summary         TEXT NOT NULL DEFAULT '',
+			color           TEXT NOT NULL DEFAULT '',
+			status          TEXT NOT NULL DEFAULT 'active',
+			parent_point_id TEXT REFERENCES thread_points(id) ON DELETE SET NULL,
+			created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+			ended_at        DATETIME
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_threads_project ON threads(project_key)`,
+		`CREATE TABLE IF NOT EXISTS thread_points (
+			id         TEXT PRIMARY KEY,
+			thread_id  TEXT REFERENCES threads(id) ON DELETE CASCADE,
+			kind       TEXT NOT NULL,
+			title      TEXT NOT NULL,
+			summary    TEXT NOT NULL DEFAULT '',
+			repo       TEXT,
+			pr_number  INTEGER,
+			pr_url     TEXT,
+			pr_state   TEXT,
+			event_date DATETIME,
+			position   INTEGER NOT NULL DEFAULT 0,
+			confirmed  INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_thread_points_thread ON thread_points(thread_id, position)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_points_pr
+			ON thread_points(repo, pr_number) WHERE repo IS NOT NULL`,
+		`CREATE TABLE IF NOT EXISTS ideas (
+			id         TEXT PRIMARY KEY,
+			title      TEXT NOT NULL,
+			summary    TEXT NOT NULL DEFAULT '',
+			status     TEXT NOT NULL DEFAULT 'active',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS idea_threads (
+			idea_id   TEXT NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+			thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+			PRIMARY KEY (idea_id, thread_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS thread_notes (
+			id         TEXT PRIMARY KEY,
+			thread_id  TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+			body       TEXT NOT NULL,
+			source     TEXT NOT NULL DEFAULT 'manual',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, m := range migrations {
