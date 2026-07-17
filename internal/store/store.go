@@ -214,6 +214,10 @@ func (s *Store) migrate() error {
 			source     TEXT NOT NULL DEFAULT 'manual',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS threads_meta (
+			key   TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)`,
 	}
 
 	for _, m := range migrations {

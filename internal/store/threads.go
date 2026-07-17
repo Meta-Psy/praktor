@@ -435,3 +435,72 @@ func (s *Store) ListNotes(threadID string) ([]ThreadNote, error) {
 	}
 	return out, rows.Err()
 }
+
+// GetPointByPR находит точку по паре repo+pr_number (nil = нет такой).
+func (s *Store) GetPointByPR(repo string, prNumber int64) (*ThreadPoint, error) {
+	p, err := scanPoint(s.db.QueryRow(
+		`SELECT `+pointCols+` FROM thread_points WHERE repo = ? AND pr_number = ?`, repo, prNumber))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get point by pr: %w", err)
+	}
+	return p, nil
+}
+
+// UpdatePointPRState обновляет только жизненный цикл PR (state/date);
+// title/summary/position — за Alex'ом, синк их не трогает.
+func (s *Store) UpdatePointPRState(id, prState, eventDate string) error {
+	res, err := s.db.Exec(`UPDATE thread_points SET pr_state = ?, event_date = ? WHERE id = ?`,
+		nullStr(prState), nullStr(eventDate), id)
+	if err != nil {
+		return fmt.Errorf("update point pr state: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("update point pr state: point %s: %w", id, ErrNotFound)
+	}
+	return nil
+}
+
+// ListProjectThreads возвращает нити одного проекта.
+func (s *Store) ListProjectThreads(projectKey string) ([]Thread, error) {
+	rows, err := s.db.Query(`SELECT `+threadCols+` FROM threads WHERE project_key = ? ORDER BY created_at`,
+		projectKey)
+	if err != nil {
+		return nil, fmt.Errorf("list project threads: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []Thread
+	for rows.Next() {
+		t, err := scanThread(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan thread: %w", err)
+		}
+		out = append(out, *t)
+	}
+	return out, rows.Err()
+}
+
+// SetThreadsMeta / GetThreadsMeta — KV для служебного состояния синка
+// (например, timestamp последнего успешного прохода).
+func (s *Store) SetThreadsMeta(key, value string) error {
+	_, err := s.db.Exec(`INSERT INTO threads_meta (key, value) VALUES (?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+	if err != nil {
+		return fmt.Errorf("set threads meta: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) GetThreadsMeta(key string) (string, error) {
+	var v string
+	err := s.db.QueryRow(`SELECT value FROM threads_meta WHERE key = ?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get threads meta: %w", err)
+	}
+	return v, nil
+}
