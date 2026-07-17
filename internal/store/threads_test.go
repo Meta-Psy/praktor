@@ -166,3 +166,34 @@ func TestMaterializePoint(t *testing.T) {
 		t.Errorf("materialized = %+v", got)
 	}
 }
+
+func TestConfirmPointMissing(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreateThread(mkThread("t1", "praktor", "Штаб UX"))
+	if err := s.ConfirmPoint("nope", "t1"); err == nil {
+		t.Fatal("confirm of missing point must fail")
+	}
+}
+
+func TestMaterializeRollbackAndGetPoint(t *testing.T) {
+	s := newTestStore(t)
+	_ = s.CreateThread(mkThread("t1", "praktor", "Контроль проектов"))
+	_ = s.CreateThread(mkThread("t2", "praktor", "Другая"))
+	_ = s.CreatePoint(ThreadPoint{ID: "plan", ThreadID: "t1", Kind: "planned", Title: "нити идей", Confirmed: true})
+	_ = s.CreatePoint(ThreadPoint{ID: "pr", Kind: "pr", Title: "x", Repo: "Meta-Psy/praktor", PRNumber: 30, PRState: "open", Confirmed: false})
+
+	// несуществующий pr — ошибка
+	if err := s.MaterializePoint("ghost", "plan", "t1"); err == nil {
+		t.Fatal("missing pr point must fail")
+	}
+	// planned из другой нити — ошибка, pr-строка пережила rollback
+	if err := s.MaterializePoint("pr", "plan", "t2"); err == nil {
+		t.Fatal("thread mismatch must fail")
+	}
+	if p, err := s.GetPoint("pr"); err != nil || p == nil || p.PRNumber != 30 {
+		t.Fatalf("pr point must survive rollback: %v, %+v", err, p)
+	}
+	if missing, err := s.GetPoint("ghost"); err != nil || missing != nil {
+		t.Fatalf("GetPoint missing: %v, %+v", err, missing)
+	}
+}

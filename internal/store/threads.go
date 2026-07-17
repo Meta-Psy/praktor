@@ -81,6 +81,8 @@ func (s *Store) ListThreads() ([]Thread, error) {
 	return out, rows.Err()
 }
 
+// UpdateThread persists title, summary, color, status and ended_at.
+// ProjectKey and ParentPointID are fixed at creation and ignored here.
 func (s *Store) UpdateThread(t Thread) error {
 	_, err := s.db.Exec(`
 		UPDATE threads SET title = ?, summary = ?, color = ?, status = ?, ended_at = ?
@@ -197,6 +199,9 @@ func (s *Store) GetPoint(id string) (*ThreadPoint, error) {
 	return p, nil
 }
 
+// UpdatePoint persists title, summary, position and event_date. PR fields,
+// kind, thread_id and confirmed are lifecycle-owned by CreatePoint,
+// ConfirmPoint and MaterializePoint and ignored here.
 func (s *Store) UpdatePoint(p ThreadPoint) error {
 	_, err := s.db.Exec(`
 		UPDATE thread_points SET title = ?, summary = ?, position = ?, event_date = ?
@@ -218,10 +223,13 @@ func (s *Store) DeletePoint(id string) error {
 
 // ConfirmPoint assigns an inbox suggestion to a thread.
 func (s *Store) ConfirmPoint(id, threadID string) error {
-	_, err := s.db.Exec(`UPDATE thread_points SET thread_id = ?, confirmed = 1 WHERE id = ?`,
+	res, err := s.db.Exec(`UPDATE thread_points SET thread_id = ?, confirmed = 1 WHERE id = ?`,
 		threadID, id)
 	if err != nil {
 		return fmt.Errorf("confirm point: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("confirm point: point %s not found", id)
 	}
 	return nil
 }
@@ -250,13 +258,13 @@ func (s *Store) MaterializePoint(prPointID, plannedPointID, threadID string) err
 	res, err := tx.Exec(`
 		UPDATE thread_points SET kind = 'pr', repo = ?, pr_number = ?, pr_url = ?,
 			pr_state = ?, event_date = ?, thread_id = ?, confirmed = 1
-		WHERE id = ? AND kind = 'planned'`,
-		repo, prNumber, prURL, prState, eventDate, threadID, plannedPointID)
+		WHERE id = ? AND kind = 'planned' AND thread_id = ?`,
+		repo, prNumber, prURL, prState, eventDate, threadID, plannedPointID, threadID)
 	if err != nil {
 		return fmt.Errorf("materialize update planned: %w", err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("materialize: planned point %s not found", plannedPointID)
+		return fmt.Errorf("materialize: planned point %s not found in thread %s", plannedPointID, threadID)
 	}
 	return tx.Commit()
 }
