@@ -65,4 +65,5 @@ const (
 	TopicEventsSecretCreated = "events.secret.created"
 	TopicEventsSecretUpdated = "events.secret.updated"
 	TopicEventsSecretDeleted = "events.secret.deleted"
+	TopicEventsThreads       = "events.threads"
 )

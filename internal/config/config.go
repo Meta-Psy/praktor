@@ -24,6 +24,7 @@ type Config struct {
 	Radar     RadarConfig                  `yaml:"radar"`
 	Intel     IntelConfig                  `yaml:"intel"`
 	Projects  map[string]ProjectDefinition `yaml:"projects"`
+	Threads   ThreadsConfig                `yaml:"threads"`
 }
 
 // ProjectDefinition is one project surfaced in the Mission Control roll-up.
@@ -143,6 +144,12 @@ type RadarConfig struct {
 	Topics         []string      `yaml:"topics"`
 	DigestEnabled  bool          `yaml:"digest_enabled"`
 	DigestInterval time.Duration `yaml:"digest_interval"`
+}
+
+// ThreadsConfig настраивает синк «нитей идей» с GitHub (активен при
+// непустом projects).
+type ThreadsConfig struct {
+	SyncInterval time.Duration `yaml:"sync_interval"` // 0 → 10m
 }
 
 func defaults() Config {
